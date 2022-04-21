@@ -227,7 +227,7 @@ Header()
     GITHUB_URL="https://api.github.com"
     GRAPHQL_URL="https://api.github.com/graphql"
   else
-    GITHUB_URL+="${GHE_URL}/api/v3"
+    GITHUB_URL="${GHE_URL}/api/v3"
     GRAPHQL_URL="${GHE_URL}/api/graphql"
   fi
 
