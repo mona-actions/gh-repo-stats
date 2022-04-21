@@ -1,0 +1,25 @@
+# This is a basic workflow to test your build against multiple OS's
+
+# Setting when the action is ran. 
+# Workflow_dispatch allows the action to be ran manually. 
+# Push branches-ignore main allows this action to be run anytime a push is made to a non main branch.
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore: main
+
+# This is where we specify what jobs we want to run. 
+# os: Specifies what OS we would like to test.
+jobs:
+  parallel-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Uncommenting the below command allows you to limit the max parallel jobs.
+      # max-parallel: 2
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    steps:
+    # Validates that Bash is installed
+    - name: Matrix Job Validate Bash
+      run: command -v bash; exit $?
+      shell: bash
