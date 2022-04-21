@@ -47,7 +47,7 @@ source .env
   - This command will start the container and drop you into the running container, with the `/tmp` directory mounted to your personal machines `/tmp` directory
 - You can now run the script from the container
   - `./get-repo-statistics.sh`
-- Give the script information about `url`, `token`, and `organization`
+- Give the script information about `GHE_URL`, `GITHUB_TOKEN`, and `ORG_NAME`
 
 ## Input file
 If you want to run this over multiple Orgs, you can pass an `input file` when starting the script
