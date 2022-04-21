@@ -2,6 +2,38 @@
 
 This script can help you find information about your repositories in your system
 
+## Prerequisites
+
+You need to either export these environment variables
+
+| Environment Variable name | Value |
+| ------------------------- | ----- |
+| GITHUB_TOKEN | GitHub Personal Access Token (PAT) with `admin:org`, `user:all`, and `repo:all` permissions
+| ORG_NAME | Organization name to run script |
+| GHE_URL | GitHub URL or GHES URL without http or https |
+
+You can export these environment variables with following commands:
+
+```sh
+export GITHUB_TOKEN=<Your GitHub PAT>
+export ORG_NAME=<Your Org name>
+export GHE_URL=<Your GHE URL>
+```
+
+You can also create an environment variable named `.env` in following format:
+
+```sh
+GITHUB_TOKEN=<Your GitHub PAT>
+ORG_NAME=<Your Org name>
+GHE_URL=<Your GHE URL>
+```
+
+Then, you can source with a following command:
+
+```sh
+source .env
+```
+
 ## How to run
 - Download the folder `get-repo-statistics` to your local machine
 - Use `git-bash` to run the following commands
