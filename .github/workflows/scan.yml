@@ -16,9 +16,6 @@ jobs:
       contents: read
       security-events: write
 
-    env:
-      SHELLCHECK_SARIF_PATH: ${{ runner.temp }}/shellcheck.sarif
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -31,9 +28,9 @@ jobs:
 
       - name: Run Shellcheck
         run: |
-          shellcheck -f json gh-repo-stats | shellcheck-sarif > "$SHELLCHECK_SARIF_PATH"
+          shellcheck -f json gh-repo-stats | shellcheck-sarif > results.sarif
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v2
       with:
-        sarif_file: ${{ env.SHELLCHECK_SARIF_PATH }}
+        sarif_file: results.sarif
