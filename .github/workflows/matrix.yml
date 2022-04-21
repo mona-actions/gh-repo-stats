@@ -21,4 +21,4 @@ jobs:
     steps:
     # Validates that Bash is installed
     - name: Matrix Job Validate Bash
-      run: command -v Bash; exit $?
+      run: command -v bash; exit $?
