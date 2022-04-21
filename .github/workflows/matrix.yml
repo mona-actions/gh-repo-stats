@@ -17,13 +17,8 @@ jobs:
       # Uncommenting the below command allows you to limit the max parallel jobs.
       # max-parallel: 2
       matrix:
-        tests: ['test1', 'test2', 'test3']
         os: [macos-latest, ubuntu-latest, windows-latest]
     steps:
-    - name: Matrix job ${{ matrix.tests }}
-      run:  |
-        echo "Running test: ${{ matrix.tests }}"
-        date
-        echo "Taking a quick nap..."
-        sleep 15
-        date
+    # Validates that Bash is installed
+    - name: Matrix Job Validate Bash
+      run: command -v Bash; exit $?
