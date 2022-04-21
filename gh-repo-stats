@@ -359,7 +359,7 @@ Footer()
   echo "The script has completed"
   echo ""
   if [[ ${OUTPUT} == "Table" ]]; then
-    column -s','  "${OUTPUT_FILE_NAME}"
+    column -t -s','  "${OUTPUT_FILE_NAME}"
     rm -f "${OUTPUT_FILE_NAME}"
   else
     echo "Results file:[${OUTPUT_FILE_NAME}]"
