@@ -6,7 +6,6 @@ template: |
   $CHANGES
 
   See details of [all code changes](https://github.com/github/super-linter/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION) since previous release
-
 categories:
   - title: '🚀 Features'
     labels:
