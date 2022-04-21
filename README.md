@@ -29,7 +29,7 @@ gh extension install mona-actions/gh-repo-stats
 
 ![Step 1](./screenshots/step1.png)
 
-### Step 2: Run gh repo stats
+### Step 2: Run gh repo-stats
 
 ```sh
 gh repo-stats --org-name=<ORG_NAME> --ghe-url=<GHE_URL> --token=<GITHUB_TOKEN>
