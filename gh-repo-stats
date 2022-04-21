@@ -73,6 +73,7 @@ Options:
                                     If a timeout occurs, reduce this value
     -e, --extra-page-size         : Set the pagination size for subsequent, paginated GraphQL queries - defaults to 20
                                     If a timeout occurs, reduce this value
+    -o, --output                  : Determine the output. Can either be "CSV" or "Table"
 
 Description:
 get-repo-statistics scans an organization or list of organizations for all repositories and gathers size statistics for each repository
@@ -124,6 +125,10 @@ while (( "$#" )); do
       EXTRA_PAGE_SIZE=$2
       shift 2
       ;;
+    -o|--output)
+      OUTPUT_PARAM=$2
+      shift 2
+      ;;
     --) # end argument parsing
       shift
       break
@@ -152,6 +157,7 @@ SLEEP='300'            # Number of seconds to sleep if out of API calls
 SLEEP_RETRY_COUNT='15' # Number of times to try to sleep before giving up
 SLEEP_COUNTER='0'      # Counter of how many times we have gone to sleep
 EXISTING_FILE='0'      # Check if a file already exists
+OUTPUT="${OUTPUT_PARAM:-Table}"
 
 ################################################################################
 ############################ FUNCTIONS #########################################
@@ -351,9 +357,14 @@ Footer()
   echo ""
   echo "######################################################"
   echo "The script has completed"
-  echo "Results file:[${OUTPUT_FILE_NAME}]"
-  echo "######################################################"
   echo ""
+  if [[ ${OUTPUT} == "Table" ]]; then
+    column -s','  "${OUTPUT_FILE_NAME}"
+    rm -f "${OUTPUT_FILE_NAME}"
+  else
+    echo "Results file:[${OUTPUT_FILE_NAME}]"
+  fi
+  echo "######################################################"
   echo ""
 }
 ################################################################################
@@ -1424,6 +1435,18 @@ ValidateJQ()
   fi
 }
 ################################################################################
+#### Function ValidateInput ####################################################
+################################################################################
+ValidateInput()
+{
+  if [[ $OUTPUT != "Table" ]] && [[ $OUTPUT != "CSV" ]]; then
+    echo "Output parameter (-o, --output) '${OUTPUT}' is invalid. Must be 'CSV' or 'Table'"
+    exit 1;
+  fi
+}
+
+
+################################################################################
 ############################## MAIN ############################################
 ################################################################################
 
@@ -1436,6 +1459,11 @@ Header
 # Validate JQ installed #
 #########################
 ValidateJQ
+
+#############################
+# Validate Input Parameters #
+#############################
+ValidateInput
 
 #################
 # Generate File #
