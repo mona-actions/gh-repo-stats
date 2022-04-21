@@ -4,7 +4,7 @@ GitHub CLI extensions are repositories that provide additional gh commands, and 
 
 ## Prerequisites
 
-- You need to have GitHub CLI installed by following this documentation: https://github.com/cli/cli#installation
+- You need to have GitHub CLI installed by following this documentation: <https://github.com/cli/cli#installation>
 - You need to have an operating system to run shell script
 
 You need to either export these environment variables
@@ -13,7 +13,7 @@ You need to either export these environment variables
 | ------------------------- | ----- |
 | GITHUB_TOKEN | GitHub Personal Access Token (PAT) with `admin:org`, `user:all`, and `repo:all` permissions
 | ORG_NAME | Organization name to run script |
-| GHE_URL | GitHub URL or GHES URL without http or https |
+| GHE_URL | GitHub URL or GHES URL without HTTP or HTTPS |
 
 You can export these environment variables with following commands:
 
