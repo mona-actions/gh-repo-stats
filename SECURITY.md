@@ -4,7 +4,7 @@ Note: Open source repositories are [out of scope](https://bounty.github.com/inde
 
 ## Supported Versions
 
-At this time, only the most recent version is supported. 
+At this time, only the most recent version is supported.
 
 ## Reporting a Vulnerability
 
@@ -17,7 +17,7 @@ Instead, please send an email to opensource-security[@]github.com.
 Please include as much of the information listed below as you can to help us better understand and resolve the issue:
 
 - The type of issue (e.g., buffer overflow, SQL injection, cross-site scripting, etc.)
-- Full paths of source file(s) 
+- Full paths of source file(s)
 - The location of the affected source code (tag/branch/commit or direct URL)
 - Any special configuration required to reproduce the issue
 - Step-by-step instructions to reproduce the issue
