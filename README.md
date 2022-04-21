@@ -1,4 +1,4 @@
-# Get Repo Statistics
+# Get Repository Statistics
 
 This script can help you find information about your repositories in your system
 
