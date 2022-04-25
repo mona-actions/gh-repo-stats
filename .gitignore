@@ -1,0 +1,2 @@
+# Ignore any csv files that may get uploaded 
+*.csv
