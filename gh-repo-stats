@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 ################################################################################
 ################################################################################
-####### Get All Repos from Org List ############################################
+####### Get repo statistics from Org(s) ########################################
 ################################################################################
 ################################################################################
 
 # LEGEND:
 # This script will use the github API to list all repos
-# and sizes for an organization
-# It will return an output.csv with the following statistics:
+# and sizes for an organization(s)
+# It will return an output.csv or table with the following statistics:
 #
 # Organization Name
 # Repository Name
@@ -34,6 +34,7 @@
 #
 # This will work for users on GitHub.com that are trying to figure out
 # how many repos they own, and how large they are.
+#
 # This can be used by services to help distinguish what repos
 # could be an issue, as well as help prepare for a migration
 #
@@ -53,13 +54,13 @@
 PrintUsage()
 {
   cat <<EOM
-Usage: get-repo-statistics [options] ORGANIZATION_NAME
+Usage: gh repo-stats [options]
 
 Options:
     -h, --help                    : Show script help
-    -d, --Debug                   : Enable Debug logging
-    -u, --url                     : Set GHE URL (e.g. https://github.example.com) Looks for GHE_URL environment
-                                    variable if omitted
+    -d, --debug                   : Enable Debug logging
+    -u, --url                     : Set GitHub URL (e.g. https://github.example.com) Looks for GHE_URL environment
+                                    variable if omitted or defaults to https://github.com
     -i, --input                   : Set path to a file with a list of organizations to scan, with the syntax of
                                     an Org Statistics csv
                                     exported from https://github.example.com/stafftools/reports
@@ -73,13 +74,14 @@ Options:
                                     If a timeout occurs, reduce this value
     -e, --extra-page-size         : Set the pagination size for subsequent, paginated GraphQL queries - defaults to 20
                                     If a timeout occurs, reduce this value
-    -o, --output                  : Determine the output. Can either be "CSV" or "Table"
+    -o, --org                     : Name of the GitHub Organization to be analyzed           
+    -O, --output                  : Determine the output. Can either be "CSV" or "Table"
 
 Description:
 get-repo-statistics scans an organization or list of organizations for all repositories and gathers size statistics for each repository
 
 Example:
-  ./get-repo-statistics -u https://github.example.com -t ABCDEFG1234567 my-org-name
+  gh repo-stats -u https://github.example.com -t ABCDEFG1234567 -O my-org-name
 
 EOM
   exit 0
@@ -125,8 +127,12 @@ while (( "$#" )); do
       EXTRA_PAGE_SIZE=$2
       shift 2
       ;;
-    -o|--output)
+    -O|--output)
       OUTPUT_PARAM=$2
+      shift 2
+      ;;
+    -o|--org)
+      ORG_NAME=$2
       shift 2
       ;;
     --) # end argument parsing
@@ -149,15 +155,19 @@ done
 ##################################################
 eval set -- "$PARAMS"
 
+############
+# Defaults #
+############
+GHE_URL=${GHE_URL:-https://github.com} # Default to GitHub.com
+GITHUB_TOKEN=${GITHUB_TOKEN:-}         # Default to environment variable
 ###########
 # GLOBALS #
 ###########
-ORG_NAME=$1            # Name of the GitHub Organization
-SLEEP='300'            # Number of seconds to sleep if out of API calls
-SLEEP_RETRY_COUNT='15' # Number of times to try to sleep before giving up
-SLEEP_COUNTER='0'      # Counter of how many times we have gone to sleep
-EXISTING_FILE='0'      # Check if a file already exists
-OUTPUT="${OUTPUT_PARAM}"
+SLEEP='300'              # Number of seconds to sleep if out of API calls
+SLEEP_RETRY_COUNT='15'   # Number of times to try to sleep before giving up
+SLEEP_COUNTER='0'        # Counter of how many times we have gone to sleep
+EXISTING_FILE='0'        # Check if a file already exists
+OUTPUT="${OUTPUT_PARAM}" # Output type
 
 ################################################################################
 ############################ FUNCTIONS #########################################
@@ -165,8 +175,7 @@ OUTPUT="${OUTPUT_PARAM}"
 ################################################################################
 ################################################################################
 #### Function DebugJQ ##########################################################
-DebugJQ()
-{
+DebugJQ() {
   # If Debug is on, print it out...
   if [[ ${DEBUG} == true ]]; then
     echo "$1" | jq '.'
@@ -174,8 +183,7 @@ DebugJQ()
 }
 ################################################################################
 #### Function Debug ############################################################
-Debug()
-{
+Debug() {
   # If Debug is on, print it out...
   if [[ ${DEBUG} == true ]]; then
     echo "$1"
@@ -183,8 +191,7 @@ Debug()
 }
 ################################################################################
 #### Function Header ###########################################################
-Header()
-{
+Header() {
   echo ""
   echo "######################################################"
   echo "######################################################"
@@ -193,27 +200,11 @@ Header()
   echo "######################################################"
   echo ""
 
-  ###################
-  # Get the GHE URL #
-  ###################
-  if [[ -z ${GHE_URL} ]]; then
-    echo ""
-    echo "------------------------------------------------------"
-    echo "Please give the URL to the GitHub Enterprise instance you would like to query"
-    echo "in the format: https://ghe-url.com"
-    echo "followed by [ENTER]:"
-
-    ########################
-    # Read input from user #
-    ########################
-    read -r GHE_URL
-
-    ############################################
-    # Clean any whitespace that may be entered #
-    ############################################
-    GHE_URL_NO_WHITESPACE="$(echo -e "${GHE_URL}" | tr -d '[:space:]')"
-    GHE_URL=$GHE_URL_NO_WHITESPACE
-  fi
+  ############################################
+  # Clean any whitespace that may be entered #
+  ############################################
+  GHE_URL_NO_WHITESPACE="$(echo -e "${GHE_URL}" | tr -d '[:space:]')"
+  GHE_URL=$GHE_URL_NO_WHITESPACE
 
   #################################
   # Get the Personal Access Token #
@@ -242,13 +233,13 @@ Header()
   ################################################################
   # Validate we can hit the endpoint by getting the current user #
   ################################################################
-  Debug "curl -kw '%{http_code}' -s --request GET \
+  Debug "curl -kw '%{http_code}' -s -X GET \
   --url ${GITHUB_URL}/user \
-  --header \"authorization: Bearer ************\""
+  -H \"authorization: Bearer ************\""
 
-  USER_RESPONSE=$(curl -kw '%{http_code}' -s --request GET \
+  USER_RESPONSE=$(curl -kw '%{http_code}' -s -X GET \
     --url "${GITHUB_URL}"/user \
-    --header "authorization: Bearer ${GITHUB_TOKEN}")
+    -H "authorization: Bearer ${GITHUB_TOKEN}")
 
   Debug "USER_RESPONSE: "
   Debug "${USER_RESPONSE}"
@@ -349,8 +340,7 @@ Header()
 }
 ################################################################################
 #### Function Footer ###########################################################
-Footer()
-{
+Footer() {
   #######################################
   # Basic footer information and totals #
   #######################################
@@ -369,8 +359,7 @@ Footer()
 }
 ################################################################################
 #### Function GetPersonalAccessToken ###########################################
-GetPersonalAccessToken()
-{
+GetPersonalAccessToken() {
   ############################
   # Check if we have a token #
   ############################
@@ -402,9 +391,8 @@ GetPersonalAccessToken()
   fi
 }
 ################################################################################
-#### Function GenerateFiles #####################################################
-GenerateFiles()
-{
+#### Function GenerateFiles ####################################################
+GenerateFiles() {
   ##########################
   # Get current date stamp #
   ##########################
@@ -522,8 +510,7 @@ GenerateFiles()
 }
 ################################################################################
 #### Function CheckAdminRights #################################################
-CheckAdminRights()
-{
+CheckAdminRights() {
   ################
   # Pull in vars #
   ################
@@ -532,14 +519,14 @@ CheckAdminRights()
   # Debug info
   Debug "echo curl -kw '%{http_code}' -s -X GET \
     --url ${GITHUB_URL}/orgs/${ORG_NAME}/memberships/${USER_LOGIN} \
-    --header \"authorization: Bearer ${GITHUB_TOKEN}\""
+    -H \"authorization: Bearer ${GITHUB_TOKEN}\""
 
   ##################
   # Get membership #
   ##################
   MEMBERSHIP_RESPONSE=$(curl -kw '%{http_code}' -s -X GET \
   --url "${GITHUB_URL}/orgs/${ORG_NAME}/memberships/${USER_LOGIN}" \
-  --header "authorization: Bearer ${GITHUB_TOKEN}")
+  -H "authorization: Bearer ${GITHUB_TOKEN}")
 
   MEMBERSHIP_RESPONSE_CODE="${MEMBERSHIP_RESPONSE:(-3)}"
   MEMBERSHIP_DATA="${MEMBERSHIP_RESPONSE::${#MEMBERSHIP_RESPONSE}-4}"
@@ -565,13 +552,12 @@ CheckAdminRights()
 }
 ################################################################################
 #### Function GetOrgsFromFile ##################################################
-GetOrgsFromFile()
-{
+GetOrgsFromFile() {
   # shellcheck disable=SC2034
   # Unused variables left for readability
   while IFS=, read -r id created_at login email admin_ct member_ct team_ct repo_ct sfa_required
   do
-    ORG_NAME=${login}
+    ORG_NAME="${login}"
 
     echo "Checking access to org: ${ORG_NAME}"
 
@@ -597,8 +583,7 @@ GetOrgsFromFile()
 }
 ################################################################################
 #### Function CheckAPILimit ####################################################
-CheckAPILimit()
-{
+CheckAPILimit() {
   ##############################################################
   # Check what is remaining, and if 0, we need to sleep it off #
   ##############################################################
@@ -647,26 +632,17 @@ CheckAPILimit()
 }
 ################################################################################
 #### Function GetRepos #########################################################
-GetRepos()
-{
+GetRepos() {
   ##############################
   # Grab repos from the system #
   ##############################
   function generate_graphql_data()
   {
-    if [[ "${VERSION}" == "cloud" || ${VERSION:2:2} -ge 17 ]]; then
-      cat <<EOF
+    cat <<EOF
   {
   "query":"query { organization(login: \"${ORG_NAME}\") { repositories(first:${REPO_PAGE_SIZE}${REPO_NEXT_PAGE}) { totalDiskUsage pageInfo { hasPreviousPage hasNextPage hasPreviousPage endCursor } nodes { owner { login } name nameWithOwner diskUsage isEmpty pushedAt updatedAt isFork collaborators(first:1) { totalCount } branchProtectionRules(first:1) { totalCount } pullRequests(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { number commits(first:1){ totalCount } timeline(first:1) { totalCount } comments(first:1) { totalCount } reviews(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { comments(first:1) { totalCount } } } } } milestones(first:1) { totalCount } commitComments(first:1) { totalCount } issues(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { timeline(first:1) { totalCount } comments(first:1) { totalCount } } } releases(first:1) { totalCount } projects(first:1) { totalCount } } } } }"
   }
 EOF
-  else
-    cat <<EOF
-  {
-  "query":"query { organization(login: \"${ORG_NAME}\") { repositories(first:${REPO_PAGE_SIZE}${REPO_NEXT_PAGE}) { totalDiskUsage pageInfo { hasPreviousPage hasNextPage hasPreviousPage endCursor } nodes { owner { login } name nameWithOwner diskUsage isEmpty pushedAt updatedAt isFork collaborators(first:1) { totalCount } protectedBranches(first:1) { totalCount } pullRequests(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { number commits(first:1){ totalCount } timeline(first:1) { totalCount } comments(first:1) { totalCount } reviews(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { comments(first:1) { totalCount } } } } } milestones(first:1) { totalCount } commitComments(first:1) { totalCount } issues(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { timeline(first:1) { totalCount } comments(first:1) { totalCount } } } releases(first:1) { totalCount } projects(first:1) { totalCount } } } } }"
-  }
-EOF
-  fi
   }
 
   Debug "Getting repos"
@@ -747,8 +723,7 @@ EOF
 }
 ################################################################################
 #### Function ParseRepoData ####################################################
-ParseRepoData()
-{
+ParseRepoData() {
   ##########################
   # Pull in the data block #
   ##########################
@@ -886,8 +861,7 @@ ParseRepoData()
 }
 ################################################################################
 #### Function AnalyzeIssues ####################################################
-AnalyzeIssues()
-{
+AnalyzeIssues() {
   THIS_REPO=$1
 
   _pr_issue_jq() {
@@ -946,8 +920,7 @@ AnalyzeIssues()
 }
 ################################################################################
 #### Function GetNextIssues ####################################################
-GetNextIssues()
-{
+GetNextIssues() {
   #############################
   # Generate the graphql data #
   #############################
@@ -992,8 +965,7 @@ EOF
 }
 ################################################################################
 #### Function AnalyzePullRequests ##############################################
-AnalyzePullRequests()
-{
+AnalyzePullRequests() {
   PR_REPO=$1
 
   _pr_repo_jq() {
@@ -1064,8 +1036,7 @@ AnalyzePullRequests()
 }
 ################################################################################
 #### Function GetNextPullRequests ##############################################
-GetNextPullRequests()
-{
+GetNextPullRequests() {
   function generate_graphql_data()
   {
   cat <<EOF
@@ -1109,8 +1080,7 @@ EOF
 }
 ################################################################################
 #### Function AnalyzeReviews ###################################################
-AnalyzeReviews()
-{
+AnalyzeReviews() {
   REVIEW_PR=$1
 
   _review_jq() {
@@ -1171,8 +1141,7 @@ AnalyzeReviews()
 }
 ################################################################################
 #### Function GetNextReviews ###################################################
-GetNextReviews()
-{
+GetNextReviews() {
   #########################
   # Generate graphql data #
   #########################
@@ -1237,8 +1206,7 @@ EOF
 }
 ################################################################################
 #### Function GetTeams #########################################################
-GetTeams()
-{
+GetTeams() {
   function generate_graphql_data()
   {
   cat <<EOF
@@ -1345,8 +1313,7 @@ EOF
 }
 ################################################################################
 #### Function MarkMigrationIssues ##############################################
-MarkMigrationIssues()
-{
+MarkMigrationIssues() {
   # Need to read the output files, and total the issues and see
   # if over 60k objects or repo is over 2gb
 
@@ -1367,8 +1334,7 @@ MarkMigrationIssues()
 }
 ################################################################################
 #### Function ReportConflicts ##################################################
-ReportConflicts()
-{
+ReportConflicts() {
   if [[ ${ANALYZE_CONFLICTS} -eq 1 ]]; then
     for (( i=0; i<${#REPO_LIST[@]}; i++)) do
       if (( ${NUMBER_OF_CONFLICTS[$i]} > 1 )); then
@@ -1390,8 +1356,7 @@ ReportConflicts()
 }
 ################################################################################
 #### Function ConvertKBToMB ####################################################
-ConvertKBToMB()
-{
+ConvertKBToMB() {
   ####################################
   # Value that needs to be converted #
   ####################################
@@ -1419,8 +1384,7 @@ ConvertKBToMB()
 }
 ################################################################################
 #### Function ValidateJQ #######################################################
-ValidateJQ()
-{
+ValidateJQ() {
   # Need to validate the machine has jq installed as we use it to do the parsing
   # of all the json returns from GitHub
 
@@ -1437,15 +1401,12 @@ ValidateJQ()
 ################################################################################
 #### Function ValidateInput ####################################################
 ################################################################################
-ValidateInput()
-{
+ValidateInput() {
   if [[ $OUTPUT != "Table" ]] && [[ $OUTPUT != "CSV" ]]; then
     echo "Output parameter (-o, --output) '${OUTPUT}' is invalid. Must be 'CSV' or 'Table'"
     exit 1;
   fi
 }
-
-
 ################################################################################
 ############################## MAIN ############################################
 ################################################################################
