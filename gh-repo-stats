@@ -361,7 +361,7 @@ Footer()
   if [[ ${OUTPUT} == "Table" ]]; then
     column -t -s','  "${OUTPUT_FILE_NAME}"
     rm -f "${OUTPUT_FILE_NAME}"
-  elif [[ ${OUTPUT} == "CSV" || ${OUTPUT} == "" ]]; then
+  elif [[ ${OUTPUT} == "CSV" ]]; then
     echo "Results file:[${OUTPUT_FILE_NAME}]"
   fi
   echo "######################################################"
