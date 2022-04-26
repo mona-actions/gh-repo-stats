@@ -12,7 +12,7 @@ You need to either export these environment variables:
 | Environment Variable name | Value                                                                                       |
 | ------------------------- | ------------------------------------------------------------------------------------------- |
 | GITHUB_TOKEN              | GitHub Personal Access Token (PAT) with `admin:org`, `user:all`, and `repo:all` permissions |
-| GHE_URL                   | GitHub URL or GHES URL without HTTP or HTTPS                                                |
+| GHE_URL                   | GitHub URL or GHES URL without HTTP or HTTPS. Defaults to https://github.com                |
 
 Or the script will prompt you to put in the relevant information.
 
