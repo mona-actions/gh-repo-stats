@@ -157,7 +157,7 @@ SLEEP='300'            # Number of seconds to sleep if out of API calls
 SLEEP_RETRY_COUNT='15' # Number of times to try to sleep before giving up
 SLEEP_COUNTER='0'      # Counter of how many times we have gone to sleep
 EXISTING_FILE='0'      # Check if a file already exists
-OUTPUT="${OUTPUT_PARAM:-Table}"
+OUTPUT="${OUTPUT_PARAM}"
 
 ################################################################################
 ############################ FUNCTIONS #########################################
@@ -361,7 +361,7 @@ Footer()
   if [[ ${OUTPUT} == "Table" ]]; then
     column -t -s','  "${OUTPUT_FILE_NAME}"
     rm -f "${OUTPUT_FILE_NAME}"
-  else
+  elif [[ ${OUTPUT} == "CSV" || ${OUTPUT} == "" ]]; then
     echo "Results file:[${OUTPUT_FILE_NAME}]"
   fi
   echo "######################################################"
