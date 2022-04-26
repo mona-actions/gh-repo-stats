@@ -159,7 +159,7 @@ eval set -- "$PARAMS"
 # Defaults #
 ############
 GHE_URL=${GHE_URL:-https://github.com} # Default to GitHub.com
-
+GITHUB_TOKEN=${GITHUB_TOKEN:-}         # Default to environment variable
 ###########
 # GLOBALS #
 ###########

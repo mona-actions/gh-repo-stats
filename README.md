@@ -12,7 +12,6 @@ You need to either export these environment variables:
 | Environment Variable name | Value                                                                                       |
 | ------------------------- | ------------------------------------------------------------------------------------------- |
 | GITHUB_TOKEN              | GitHub Personal Access Token (PAT) with `admin:org`, `user:all`, and `repo:all` permissions |
-| ORG_NAME                  | Organization name to run script                                                             |
 | GHE_URL                   | GitHub URL or GHES URL without HTTP or HTTPS                                                |
 
 Or the script will prompt you to put in the relevant information.
@@ -32,7 +31,7 @@ gh extension install mona-actions/gh-repo-stats
 ### Step 2: Run gh repo-stats
 
 ```sh
-gh repo-stats --org-name=<ORG_NAME> --ghe-url=<GHE_URL> --token=<GITHUB_TOKEN>
+gh repo-stats --org <ORG_NAME> --ghe-url <GHE_URL> --token <GITHUB_TOKEN>
 ```
 
 ### Example Output
