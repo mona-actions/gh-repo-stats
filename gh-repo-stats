@@ -75,13 +75,13 @@ Options:
     -e, --extra-page-size         : Set the pagination size for subsequent, paginated GraphQL queries - defaults to 20
                                     If a timeout occurs, reduce this value
     -o, --org                     : Name of the GitHub Organization to be analyzed           
-    -O, --output                  : Determine the output. Can either be "CSV" or "Table"
+    -O, --output                  : Determine the output. Can either be "CSV" or "Table" Default: CSV
 
 Description:
 get-repo-statistics scans an organization or list of organizations for all repositories and gathers size statistics for each repository
 
 Example:
-  gh repo-stats -u https://github.example.com -t ABCDEFG1234567 -O my-org-name
+  gh repo-stats -u https://github.example.com -t ABCDEFG1234567 -o my-org-name
 
 EOM
   exit 0
@@ -163,11 +163,11 @@ GITHUB_TOKEN=${GITHUB_TOKEN:-}         # Default to environment variable
 ###########
 # GLOBALS #
 ###########
-SLEEP='300'              # Number of seconds to sleep if out of API calls
-SLEEP_RETRY_COUNT='15'   # Number of times to try to sleep before giving up
-SLEEP_COUNTER='0'        # Counter of how many times we have gone to sleep
-EXISTING_FILE='0'        # Check if a file already exists
-OUTPUT="${OUTPUT_PARAM}" # Output type
+SLEEP='300'                   # Number of seconds to sleep if out of API calls
+SLEEP_RETRY_COUNT='15'        # Number of times to try to sleep before giving up
+SLEEP_COUNTER='0'             # Counter of how many times we have gone to sleep
+EXISTING_FILE='0'             # Check if a file already exists
+OUTPUT="${OUTPUT_PARAM:-CSV}" # Output type CSV or Table
 
 ################################################################################
 ############################ FUNCTIONS #########################################
@@ -348,10 +348,10 @@ Footer() {
   echo "######################################################"
   echo "The script has completed"
   echo ""
-  if [[ ${OUTPUT} == "Table" ]]; then
+  if [[ ${OUTPUT} != "CSV" ]]; then
     column -t -s','  "${OUTPUT_FILE_NAME}"
     rm -f "${OUTPUT_FILE_NAME}"
-  elif [[ ${OUTPUT} == "CSV" ]]; then
+  else
     echo "Results file:[${OUTPUT_FILE_NAME}]"
   fi
   echo "######################################################"
@@ -730,9 +730,9 @@ ParseRepoData() {
   PARSE_DATA=$1
 
   REPOS=$(echo "${PARSE_DATA}" | jq -r '.data.organization.repositories.nodes')
-  for REPO in $(echo "${REPOS}" | jq -r '.[] | @base64'); do
+  for REPO in $(echo -n "${REPOS}" | jq -r '.[] | @base64'); do
     _jq() {
-    echo "${REPO}" | base64 --decode | jq -r "${1}"
+    echo -n "${REPO}" | base64 --decode | jq -r "${1}"
     }
 
     OWNER=$(_jq '.owner.login' | tr '[:upper:]' '[:lower:]')
@@ -774,7 +774,7 @@ ParseRepoData() {
       COMMIT_COMMENT_CT=$(_jq '.commitComments.totalCount')
       PROJECT_CT=$(_jq '.projects.totalCount')
 
-      if [[ "${VERSION}" == "cloud" || ${VERSION:2:2} -ge 17 ]]; then
+      if [[ "${VERSION}" == "cloud" ]]; then
         PROTECTED_BRANCH_CT=$(_jq '.branchProtectionRules.totalCount')
       else
         PROTECTED_BRANCH_CT=$(_jq '.protectedBranches.totalCount')
@@ -865,7 +865,7 @@ AnalyzeIssues() {
   THIS_REPO=$1
 
   _pr_issue_jq() {
-   echo "${THIS_REPO}" | base64 --decode | jq -r "${1}"
+   echo -n "${THIS_REPO}" | base64 --decode | jq -r "${1}"
   }
 
   ISSUES=$(_pr_issue_jq '.issues.nodes')
@@ -880,9 +880,9 @@ AnalyzeIssues() {
   ##############################
   ISSUE_NEXT_PAGE=', after: \"'$(_pr_issue_jq  '.issues.pageInfo.endCursor')'\"'
 
-  for ISSUE in $(echo "${ISSUES}" | jq -r '.[] | @base64'); do
+  for ISSUE in $(echo -n "${ISSUES}" | jq -r '.[] | @base64'); do
     _issue_jq() {
- echo "${ISSUE}" | base64 --decode | jq -r "${1}"
+ echo -n "${ISSUE}" | base64 --decode | jq -r "${1}"
     }
 
     EVENT_CT=$(_issue_jq '.timeline.totalCount')
@@ -955,7 +955,7 @@ EOF
       echo "${ERROR_MESSAGE}" | jq '.'
     fi
 
-    ISSUE_REPO=$(echo "${ISSUE_DATA}" | jq -r '.data.repository | @base64')
+    ISSUE_REPO=$(echo -n "${ISSUE_DATA}" | jq -r '.data.repository | @base64')
 
     ######################
     # Analyze the issues #
@@ -969,7 +969,7 @@ AnalyzePullRequests() {
   PR_REPO=$1
 
   _pr_repo_jq() {
-   echo "${PR_REPO}" | base64 --decode | jq -r "${1}"
+   echo -n "${PR_REPO}" | base64 --decode | jq -r "${1}"
   }
 
   Debug "Analyzing Pull Requests for: ${REPO_NAME}"
@@ -986,9 +986,9 @@ AnalyzePullRequests() {
   ##############################
   PR_NEXT_PAGE=', after: \"'$(_pr_repo_jq  '.pullRequests.pageInfo.endCursor')'\"'
 
-  for PR in $(echo "${PRS}" | jq -r '.[] | @base64'); do
+  for PR in $(echo -n "${PRS}" | jq -r '.[] | @base64'); do
     _pr_jq() {
- echo "${PR}" | base64 --decode | jq -r "${1}"
+ echo -n "${PR}" | base64 --decode | jq -r "${1}"
     }
 
     PR_NUMBER=$(_pr_jq '.number')
@@ -1073,7 +1073,7 @@ EOF
       echo "${ERROR_MESSAGE}" | jq '.'
     fi
 
-    PR_REPO=$(echo "${PR_DATA}" | jq -r '.data.repository | @base64')
+    PR_REPO=$(echo -n "${PR_DATA}" | jq -r '.data.repository | @base64')
 
     AnalyzePullRequests "${PR_REPO}"
   fi
@@ -1084,7 +1084,7 @@ AnalyzeReviews() {
   REVIEW_PR=$1
 
   _review_jq() {
-   echo "${REVIEW_PR}" | base64 --decode | jq -r "${1}"
+   echo -n "${REVIEW_PR}" | base64 --decode | jq -r "${1}"
   }
 
   REVIEWS=$(_review_jq '.reviews.nodes')
@@ -1102,9 +1102,9 @@ AnalyzeReviews() {
 
   Debug "Analyzing Pull Request Reviews for: ${REPO_NAME} PR: ${PR_NUMBER}"
 
-  for REVIEW in $(echo "${REVIEWS}" | jq -r '.[] | @base64'); do
+  for REVIEW in $(echo -n "${REVIEWS}" | jq -r '.[] | @base64'); do
     _pr_jq() {
- echo "${REVIEW}" | base64 --decode | jq -r "${1}"
+ echo -n "${REVIEW}" | base64 --decode | jq -r "${1}"
     }
 
     REVIEW_COMMENT_CT=$(_pr_jq '.comments.totalCount')
@@ -1196,7 +1196,7 @@ EOF
     #####################
     # Get the Review PR #
     #####################
-    REVIEW_PR=$(echo "${REVIEW_DATA}" | jq -r '.data.repository.pullRequest | @base64')
+    REVIEW_PR=$(echo -n "${REVIEW_DATA}" | jq -r '.data.repository.pullRequest | @base64')
 
     ######################
     # Analyze the review #
@@ -1254,9 +1254,9 @@ EOF
     ##############################
     TEAM_NEXT_PAGE=', after: \"'$(echo "${TEAM_DATA}" | jq -r '.data.organization.teams.pageInfo.endCursor')'\"'
 
-    for TEAM in $(echo "${TEAMS}" | jq -r '.[] | @base64'); do
+    for TEAM in $(echo -n "${TEAMS}" | jq -r '.[] | @base64'); do
       _team_jq() {
-        echo "${TEAM}" | base64 --decode | jq -r "${1}"
+        echo -n "${TEAM}" | base64 --decode | jq -r "${1}"
       }
 
       TEAM_NAME=$(_team_jq '.slug')
@@ -1403,7 +1403,7 @@ ValidateJQ() {
 ################################################################################
 ValidateInput() {
   if [[ $OUTPUT != "Table" ]] && [[ $OUTPUT != "CSV" ]]; then
-    echo "Output parameter (-o, --output) '${OUTPUT}' is invalid. Must be 'CSV' or 'Table'"
+    echo "Output parameter (-O, --output) '${OUTPUT}' is invalid. Must be 'CSV' or 'Table'"
     exit 1;
   fi
 }
@@ -1420,11 +1420,6 @@ Header
 # Validate JQ installed #
 #########################
 ValidateJQ
-
-#############################
-# Validate Input Parameters #
-#############################
-ValidateInput
 
 #################
 # Generate File #
