@@ -75,13 +75,13 @@ Options:
     -e, --extra-page-size         : Set the pagination size for subsequent, paginated GraphQL queries - defaults to 20
                                     If a timeout occurs, reduce this value
     -o, --org                     : Name of the GitHub Organization to be analyzed           
-    -O, --output                  : Determine the output. Can either be "CSV" or "Table"
+    -O, --output                  : Determine the output. Can either be "CSV" or "Table" Default: CSV
 
 Description:
 get-repo-statistics scans an organization or list of organizations for all repositories and gathers size statistics for each repository
 
 Example:
-  gh repo-stats -u https://github.example.com -t ABCDEFG1234567 -O my-org-name
+  gh repo-stats -u https://github.example.com -t ABCDEFG1234567 -o my-org-name
 
 EOM
   exit 0
@@ -163,11 +163,11 @@ GITHUB_TOKEN=${GITHUB_TOKEN:-}         # Default to environment variable
 ###########
 # GLOBALS #
 ###########
-SLEEP='300'              # Number of seconds to sleep if out of API calls
-SLEEP_RETRY_COUNT='15'   # Number of times to try to sleep before giving up
-SLEEP_COUNTER='0'        # Counter of how many times we have gone to sleep
-EXISTING_FILE='0'        # Check if a file already exists
-OUTPUT="${OUTPUT_PARAM}" # Output type
+SLEEP='300'                   # Number of seconds to sleep if out of API calls
+SLEEP_RETRY_COUNT='15'        # Number of times to try to sleep before giving up
+SLEEP_COUNTER='0'             # Counter of how many times we have gone to sleep
+EXISTING_FILE='0'             # Check if a file already exists
+OUTPUT="${OUTPUT_PARAM:-CSV}" # Output type CSV or Table
 
 ################################################################################
 ############################ FUNCTIONS #########################################
@@ -348,10 +348,10 @@ Footer() {
   echo "######################################################"
   echo "The script has completed"
   echo ""
-  if [[ ${OUTPUT} == "Table" ]]; then
+  if [[ ${OUTPUT} != "CSV" ]]; then
     column -t -s','  "${OUTPUT_FILE_NAME}"
     rm -f "${OUTPUT_FILE_NAME}"
-  elif [[ ${OUTPUT} == "CSV" ]]; then
+  else
     echo "Results file:[${OUTPUT_FILE_NAME}]"
   fi
   echo "######################################################"
@@ -1403,7 +1403,7 @@ ValidateJQ() {
 ################################################################################
 ValidateInput() {
   if [[ $OUTPUT != "Table" ]] && [[ $OUTPUT != "CSV" ]]; then
-    echo "Output parameter (-o, --output) '${OUTPUT}' is invalid. Must be 'CSV' or 'Table'"
+    echo "Output parameter (-O, --output) '${OUTPUT}' is invalid. Must be 'CSV' or 'Table'"
     exit 1;
   fi
 }
@@ -1420,11 +1420,6 @@ Header
 # Validate JQ installed #
 #########################
 ValidateJQ
-
-#############################
-# Validate Input Parameters #
-#############################
-ValidateInput
 
 #################
 # Generate File #
