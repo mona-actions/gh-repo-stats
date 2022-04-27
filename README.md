@@ -1,11 +1,13 @@
 # Get Repository Statistics
 
 **GitHub CLI** extensions are repositories that provide additional `gh` commands, and this **GitHub CLI** extension can help you find information about your repositories in your organizations.
+This information outlines the underlying **GitHub** `metadata` associated with your repository. This information is key to understanding how long a migration of the data from one instance of **GitHub** to another will take.
+When the extension is run to completion, you will be presented with a visual table, or `*.csv` file to parse for all relevant information.
 
 ## Prerequisites
 
-- You need to have **GitHub CLI** installed by following this documentation: <https://github.com/cli/cli#installation>
-- You need to have an operating system that can run shell scripts(*bash/sh*)
+- **GitHub CLI** installed by following this documentation: <https://github.com/cli/cli#installation>
+- Operating system that can run shell scripts(*bash/sh*)
 
 You need to either export these environment variables:
 
@@ -18,7 +20,7 @@ Or the script will prompt you to put in the relevant information.
 
 ## How to run
 
-Make sure you followed prerequisites and then follow this instruction.
+Make sure you followed prerequisites and then follow these instructions.
 
 ### Step 1: Install GitHub extension
 
