@@ -1002,7 +1002,25 @@ AnalyzePullRequests() {
       AnalyzeReviews "${PR}"
     fi
 
-    ISSUE_EVENT_CT=$((ISSUE_EVENT_CT + EVENT_CT - COMMENT_CT - COMMIT_CT))
+    # TODO: Is there a possible issue with .timeline.totalCount not including all comments either?
+    if [[ ${COMMIT_CT} -gt 250 ]]; then
+      REDUNDANT_EVENT_CT=$((COMMENT_CT + 250))
+    else
+      REDUNDANT_EVENT_CT=$((COMMENT_CT + COMMIT_CT))
+    fi
+
+    if [[ ${REDUNDANT_EVENT_CT} -gt ${EVENT_CT} ]]; then
+        echo ""
+        echo "######################################################"
+        echo "WARNING! There are more redundant events than timeline events for PR ${PR_NUMBER}!"
+        echo "gh-repo-stats may have an issue"
+        echo "EVENT_CT: ${EVENT_CT}"
+        echo "COMMENT_CT: ${COMMENT_CT}"
+        echo "COMMIT_CT: ${COMMIT_CT}"
+        echo "######################################################"
+    fi
+
+    ISSUE_EVENT_CT=$((ISSUE_EVENT_CT + EVENT_CT - REDUNDANT_EVENT_CT))
     ISSUE_COMMENT_CT=$((ISSUE_COMMENT_CT + COMMENT_CT))
     PR_REVIEW_CT=$((PR_REVIEW_CT + REVIEW_CT))
   done
