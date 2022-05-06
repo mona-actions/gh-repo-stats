@@ -1010,14 +1010,14 @@ AnalyzePullRequests() {
     fi
 
     if [[ ${REDUNDANT_EVENT_CT} -gt ${EVENT_CT} ]]; then
-        echo ""
-        echo "######################################################"
-        echo "WARNING! There are more redundant events than timeline events for PR ${PR_NUMBER}!"
-        echo "gh-repo-stats may have an issue"
-        echo "EVENT_CT: ${EVENT_CT}"
-        echo "COMMENT_CT: ${COMMENT_CT}"
-        echo "COMMIT_CT: ${COMMIT_CT}"
-        echo "######################################################"
+      echo ""
+      echo "######################################################"
+      echo "WARNING! There are more redundant events than timeline events for PR ${PR_NUMBER}!"
+      echo "gh-repo-stats may have an issue"
+      echo "EVENT_CT: ${EVENT_CT}"
+      echo "COMMENT_CT: ${COMMENT_CT}"
+      echo "COMMIT_CT: ${COMMIT_CT}"
+      echo "######################################################"
     fi
 
     ISSUE_EVENT_CT=$((ISSUE_EVENT_CT + EVENT_CT - REDUNDANT_EVENT_CT))
