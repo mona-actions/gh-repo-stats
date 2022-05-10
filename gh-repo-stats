@@ -61,9 +61,7 @@ Options:
     -d, --debug                   : Enable Debug logging
     -u, --url                     : Set GitHub URL (e.g. https://github.example.com) Looks for GHE_URL environment
                                     variable if omitted or defaults to https://github.com
-    -i, --input                   : Set path to a file with a list of organizations to scan, with the syntax of
-                                    an Org Statistics csv
-                                    exported from https://github.example.com/stafftools/reports
+    -i, --input                   : Set path to a file with a list of organizations to scan, one per line, newline delimited
     -t, --token                   : Set Personal Access Token with repo scope - Looks for GITHUB_TOKEN environment
                                     variable if omitted
     -r, --analyze-repo-conflicts  : Checks the Repo Name against repos in other organizations and generates a list
@@ -555,7 +553,7 @@ CheckAdminRights() {
 GetOrgsFromFile() {
   # shellcheck disable=SC2034
   # Unused variables left for readability
-  while IFS=, read -r id created_at login email admin_ct member_ct team_ct repo_ct sfa_required
+  while IFS=, read -r login
   do
     ORG_NAME="${login}"
 
