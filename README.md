@@ -18,6 +18,30 @@ You need to either export these environment variables:
 
 Or the script will prompt you to put in the relevant information.
 
+## CLI options
+
+```text
+Usage: gh repo-stats [options]
+
+Options:
+    -h, --help                    : Show script help
+    -d, --debug                   : Enable Debug logging
+    -u, --url                     : Set GitHub URL (e.g. https://github.example.com) Looks for GHE_URL environment
+                                    variable if omitted or defaults to https://github.com
+    -i, --input                   : Set path to a file with a list of organizations to scan, one per line, newline delimited
+    -t, --token                   : Set Personal Access Token with repo scope - Looks for GITHUB_TOKEN environment
+                                    variable if omitted
+    -r, --analyze-repo-conflicts  : Checks the Repo Name against repos in other organizations and generates a list
+                                    of potential naming conflicts if those orgs are to be merged during migration
+    -T, --analyze-team-conflicts  : Gathers each org's teams and checks against other orgs to generate a list of
+                                    potential naming conflicts if those orgs are to be merged during migration
+    -p, --repo-page-size          : Set the pagination size for the initial repository GraphQL query - defaults to 20
+                                    If a timeout occurs, reduce this value
+    -e, --extra-page-size         : Set the pagination size for subsequent, paginated GraphQL queries - defaults to 20
+                                    If a timeout occurs, reduce this value
+    -o, --org                     : Name of the GitHub Organization to be analyzed           
+    -O, --output                  : Determine the output. Can either be "CSV" or "Table" Default: CSV
+```
 ## How to run
 
 Make sure you followed prerequisites and then follow these instructions.
