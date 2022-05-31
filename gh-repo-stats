@@ -97,7 +97,7 @@ while (( "$#" )); do
       GHE_URL=$2
       shift 2
       ;;
-    -d|--DEBUG)
+    -d|--debug)
       DEBUG=true
       shift
       ;;
