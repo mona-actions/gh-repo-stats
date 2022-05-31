@@ -207,8 +207,9 @@ Header() {
   ############################
   # Validate prereq packages #
   ############################
-  jq > /dev/null 2>&1
-  if [[ $? -ne 0 ]]; then
+ 
+  # if the exit code from trying to execute jq is non-zero, then it is not installed
+  if [[ jq ]]; then
     echo "JQ (command-line JSON parser) is not installed. See https://stedolan.github.io/jq"
     exit 1;
   fi
