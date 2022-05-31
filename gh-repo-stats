@@ -269,7 +269,7 @@ Header() {
   #####################
   # Check GHE version #
   #####################
-  if [[ "${GITHUB_URL}" != "https://api.github.com" ]]; then
+  if [[ ! isCloud ]]; then
 
     META_RESPONSE=$(curl -kw '%{http_code}' -s --request GET \
     --url "${GITHUB_URL}"/meta \
@@ -292,15 +292,21 @@ Header() {
     else
       VERSION=$(echo "${META_DATA}" | jq -r '.installed_version')
 
-
       # Get major/minor versions
       VERSION_MAJOR=$(echo "${VERSION}" | cut -d "." -f 1);
       VERSION_MINOR=$(echo "${VERSION}" | cut -d "." -f 2);
+
+      # Validate supported versions
+      if [[ "$(isCompatibleGHESVersion)" -eq "0" ]]; then
+        echo "GitHub Enterprise version ${VERSION} is not supported."
+        exit 1;
+      fi
     fi
   else
     VERSION="cloud"
   fi
   Debug "Version: ${VERSION}"
+
 
   ###########################
   # Check org or input file #
@@ -494,8 +500,14 @@ GenerateFiles() {
     # Create Header in the file #
     #############################
     echo "Creating file header..."
+
+    IS_EMPTY_HEADER="Is_Empty,";
+    if [[ "$(isCompatibleGHESVersion)" -eq "2" ]]; then
+      IS_EMPTY_HEADER="";
+    fi
+
     # File format headers: ORG_NAME,REPO_NAME,IS_EMPTY,PUSHED_AT,UPDATED_AT,IS_FORK,REPO_SIZE,RECORD_CT,COLLABORATOR_CT,PROTECTED_BRANCH_CT,PR_REVIEW_CT,MILESTONE_CT,ISSUE_CT,PR_CT,PR_REVIEW_COMMENT_CT,COMMIT_COMMENT_CT,ISSUE_COMMENT_CT,ISSUE_EVENT_CT,RELEASE_CT,PROJECT_CT,GHE_URL/ORG_NAME/REPO_NAME,MIGRATION_ISSUE
-    echo "Org_Name,Repo_Name,Is_Empty,Last_Push,Last_Update,isFork,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Full_URL,Migration_Issue" >> "${OUTPUT_FILE_NAME}" 2>&1
+    echo "Org_Name,Repo_Name,${IS_EMPTY_HEADER}Last_Push,Last_Update,isFork,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Full_URL,Migration_Issue" >> "${OUTPUT_FILE_NAME}" 2>&1
 
     #######################
     # Load the error code #
@@ -554,16 +566,25 @@ CheckAdminRights() {
   fi
 }
 ################################################################################
-#### Function CheckVersionCompatibility ########################################
-CheckVersionCompatibility() {
-  if [[ "${VERSION_MAJOR}" -lt "3" ]]; then
+#### Function isGHEC ###########################################################
+isCloud() {
+  if [[ "${GITHUB_URL}" != "https://api.github.com" ]]; then
+    echo 0;
+  else
+    echo 1;
+  fi
+}
+################################################################################
+#### Function isIncompatibleGHESVersion ########################################
+isCompatibleGHESVersion() {
+  if [[ ! isCloud ]] && [[ "${VERSION_MAJOR}" -lt "3" ]]; then
     if  [[ "${VERSION_MAJOR}" -eq "2" ]] && [[ "${VERSION_MINOR}" -gt "21" ]]; then
-      echo 0;
+      echo 2;
     else
-      echo 1;
+      echo 0;
     fi
   else
-    echo 0;
+    echo 1;
   fi
 }
 ################################################################################
@@ -654,8 +675,9 @@ GetRepos() {
   ##############################
   function generate_graphql_data()
   {
+    # When the version is 2.21, we need to remove the isEmpty flag
     IS_EMPTY_FLAG="isEmpty";
-    if [[ "${VERSION_MAJOR}" -lt "3" ]] && [[ "${VERSION_MAJOR}" -lt "22" ]]; then
+    if [[ "$(isCompatibleGHESVersion)" -eq "2" ]]; then
       IS_EMPTY_FLAG="";
     fi
     cat <<EOF
@@ -781,7 +803,12 @@ ParseRepoData() {
       REPO_SIZE_KB=$(_jq '.diskUsage')
       REPO_SIZE=$(ConvertKBToMB "${REPO_SIZE_KB}")
 
-      IS_EMPTY=$(_jq '.isEmpty')
+      # Look for isEmpty property only if it's supported
+      IS_EMPTY="";
+      if [[ "$(isCompatibleGHESVersion)" -eq "1" ]]; then
+        IS_EMPTY="$(_jq '.isEmpty'),"
+      fi
+
       PUSHED_AT=$(_jq '.pushedAt')
       UPDATED_AT=$(_jq '.updatedAt')
       IS_FORK=$(_jq '.isFork')
@@ -836,7 +863,7 @@ ParseRepoData() {
       ########################
       # Write it to the file #
       ########################
-      echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY},${PUSHED_AT},${UPDATED_AT},${IS_FORK},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${GHE_URL}/${ORG_NAME}/${REPO_NAME},${MIGRATION_ISSUE}" >> "${OUTPUT_FILE_NAME}"
+      echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY}${PUSHED_AT},${UPDATED_AT},${IS_FORK},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${GHE_URL}/${ORG_NAME}/${REPO_NAME},${MIGRATION_ISSUE}" >> "${OUTPUT_FILE_NAME}"
 
       #######################
       # Load the error code #
