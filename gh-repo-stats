@@ -578,18 +578,20 @@ isCloud() {
 #### Function isIncompatibleGHESVersion ########################################
 isCompatibleGHESVersion() {
   if [[ ! $(isCloud) ]] && [[ "${VERSION_MAJOR}" -lt "3" ]]; then
-    if  [[ "${VERSION_MAJOR}" -eq "2" ]]; then
+    if  [[ "${VERSION_MAJOR}" -eq "2" ]] && [[ "${VERSION_MINOR}" -ge "20" ]]; then
       if [[ "${VERSION_MINOR}" -gt "21" ]]; then
+        # GHES >= v2.22 (supported)
         echo 1;
-      elif [[ "${VERSION_MINOR}" -ge "20" ]]; then
-        echo 2;
       else
-        echo 0;
+        # GHES v2.20 & v2.21 (no isEmpty supported)
+        echo 2;
       fi
     else
+      # GHES < v2.20 (not supported)
       echo 0;
     fi
   else
+    # GHEC or GHES >= v3 (supported)
     echo 1;
   fi
 }
