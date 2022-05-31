@@ -8,7 +8,7 @@ When the extension is run to completion, you will be presented with a visual tab
 
 - Operating system that can run shell scripts(*bash/sh*)
 - **GitHub CLI** installed by following this documentation: <https://github.com/cli/cli#installation>
-- **jq** command line JSON parser package: <https://stedolan.github.io/jq/>
+- **jq** command-line JSON parser: <https://stedolan.github.io/jq/>
 
 You need to either export these environment variables:
 
