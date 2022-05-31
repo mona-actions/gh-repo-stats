@@ -204,6 +204,15 @@ Header() {
   GHE_URL_NO_WHITESPACE="$(echo -e "${GHE_URL}" | tr -d '[:space:]')"
   GHE_URL=$GHE_URL_NO_WHITESPACE
 
+  ############################
+  # Validate prereq packages #
+  ############################
+  jq > /dev/null 2>&1
+  if [[ $? -ne 0 ]]; then
+    echo "JQ (command-line JSON parser) is not installed. See https://stedolan.github.io/jq"
+    exit 1;
+  fi
+
   #################################
   # Get the Personal Access Token #
   #################################
