@@ -416,7 +416,7 @@ GenerateFiles() {
   ##############################
   # Check the shell for errors #
   ##############################
-  if [ "${ERROR_CODE}" -eq 0 ]; then
+  if [ ${ERROR_CODE} -eq 0 ]; then
     # There is already file
     # Going to use and append
     OUTPUT_FILE_NAME="${EXISTING_FILE_CMD:2}"
@@ -439,7 +439,7 @@ GenerateFiles() {
     ##############################
     # Check the shell for errors #
     ##############################
-    if [ "${ERROR_CODE}" -eq 0 ]; then
+    if [ ${ERROR_CODE} -eq 0 ]; then
       # There is already file
       # Going to use and append
       REPO_CONFLICTS_OUTPUT_FILE="${EXISTING_FILE_CMD:2}"
@@ -468,7 +468,7 @@ GenerateFiles() {
     ##############################
     # Check the shell for errors #
     ##############################
-    if [ "${ERROR_CODE}" -eq 0 ]; then
+    if [ ${ERROR_CODE} -eq 0 ]; then
       # There is already file
       # Going to use and append
       TEAM_CONFLICTS_OUTPUT_FILE="${EXISTING_FILE_CMD:2}"
@@ -484,7 +484,7 @@ GenerateFiles() {
   #########################################
   # Only add header if were not appending #
   #########################################
-  if [ "${EXISTING_FILE}" -ne 1 ]; then
+  if [ ${EXISTING_FILE} -ne 1 ]; then
     #############################
     # Create Header in the file #
     #############################
@@ -598,7 +598,7 @@ CheckAPILimit() {
   ##############################
   # Check the shell for errors #
   ##############################
-  if [ "${ERROR_CODE}" -ne 0 ]; then
+  if [ ${ERROR_CODE} -ne 0 ]; then
     echo  "ERROR! Failed to get valid response back from GitHub API!"
     echo "ERROR:[${API_REMAINING_CMD}]"
     exit 1
@@ -607,14 +607,14 @@ CheckAPILimit() {
   ##########################################
   # Check to see if we have API calls left #
   ##########################################
-  if [ "${API_REMAINING_CMD}" -eq 0 ]; then
+  if [ ${API_REMAINING_CMD} -eq 0 ]; then
     # Increment the sleep counter
     ((SLEEP_COUNTER++))
     # Warn the user
     echo "WARN! We have run out of GrahpQL calls and need to sleep!"
     echo "Sleeping for ${SLEEP} seconds before next check"
     # Check if we have slept enough
-    if [ "${SLEEP_COUNTER}" -gt "${SLEEP_RETRY_COUNT}" ]; then
+    if [ ${SLEEP_COUNTER} -gt ${SLEEP_RETRY_COUNT} ]; then
       # We have been doing this too long
       echo "ERROR! We have tried to wait for:[$SLEEP_RETRY_COUNT] attempts!"
       echo "ERROR! We only sleep for:[${SLEEP_COUNTER}] attempts!"
@@ -806,7 +806,7 @@ ParseRepoData() {
       # Get if this is a migration issue #
       ####################################
       MIGRATION_ISSUE=$(MarkMigrationIssues "${REPO_SIZE}" "${RECORD_CT}")
-      if [ "${MIGRATION_ISSUE}" -eq 0 ]; then
+      if [ ${MIGRATION_ISSUE} -eq 0 ]; then
         MIGRATION_ISSUE="TRUE"
       else
         MIGRATION_ISSUE="FALSE"
@@ -1340,7 +1340,7 @@ MarkMigrationIssues() {
   RECORD_COUNT="$2"
 
   # Check if more than 60k objects
-  if [ "${RECORD_COUNT}" -ge 60000 ] || [ "${REPO_SIZE}" -gt 1500 ]; then
+  if [ ${RECORD_COUNT} -ge 60000 ] || [ ${REPO_SIZE} -gt 1500 ]; then
     echo "0"
     return 0
   else
