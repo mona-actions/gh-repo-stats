@@ -291,6 +291,11 @@ Header() {
       echo "${META_DATA}"
     else
       VERSION=$(echo "${META_DATA}" | jq -r '.installed_version')
+
+
+      # Get major/minor versions
+      VERSION_MAJOR=$(echo "${VERSION}" | cut -d "." -f 1);
+      VERSION_MINOR=$(echo "${VERSION}" | cut -d "." -f 2);
     fi
   else
     VERSION="cloud"
@@ -549,6 +554,19 @@ CheckAdminRights() {
   fi
 }
 ################################################################################
+#### Function CheckVersionCompatibility ########################################
+CheckVersionCompatibility() {
+  if [[ "${VERSION_MAJOR}" -lt "3" ]]; then
+    if  [[ "${VERSION_MAJOR}" -eq "2" ]] && [[ "${VERSION_MINOR}" -gt "21" ]]; then
+      echo 0;
+    else
+      echo 1;
+    fi
+  else
+    echo 0;
+  fi
+}
+################################################################################
 #### Function GetOrgsFromFile ##################################################
 GetOrgsFromFile() {
   # shellcheck disable=SC2034
@@ -636,9 +654,13 @@ GetRepos() {
   ##############################
   function generate_graphql_data()
   {
+    IS_EMPTY_FLAG="isEmpty";
+    if [[ "${VERSION_MAJOR}" -lt "3" ]] && [[ "${VERSION_MAJOR}" -lt "22" ]]; then
+      IS_EMPTY_FLAG="";
+    fi
     cat <<EOF
   {
-  "query":"query { organization(login: \"${ORG_NAME}\") { repositories(first:${REPO_PAGE_SIZE}${REPO_NEXT_PAGE}) { totalDiskUsage pageInfo { hasPreviousPage hasNextPage hasPreviousPage endCursor } nodes { owner { login } name nameWithOwner diskUsage isEmpty pushedAt updatedAt isFork collaborators(first:1) { totalCount } branchProtectionRules(first:1) { totalCount } pullRequests(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { number commits(first:1){ totalCount } timeline(first:1) { totalCount } comments(first:1) { totalCount } reviews(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { comments(first:1) { totalCount } } } } } milestones(first:1) { totalCount } commitComments(first:1) { totalCount } issues(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { timeline(first:1) { totalCount } comments(first:1) { totalCount } } } releases(first:1) { totalCount } projects(first:1) { totalCount } } } } }"
+  "query":"query { organization(login: \"${ORG_NAME}\") { repositories(first:${REPO_PAGE_SIZE}${REPO_NEXT_PAGE}) { totalDiskUsage pageInfo { hasPreviousPage hasNextPage hasPreviousPage endCursor } nodes { owner { login } name nameWithOwner diskUsage ${IS_EMPTY_FLAG} pushedAt updatedAt isFork collaborators(first:1) { totalCount } branchProtectionRules(first:1) { totalCount } pullRequests(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { number commits(first:1){ totalCount } timeline(first:1) { totalCount } comments(first:1) { totalCount } reviews(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { comments(first:1) { totalCount } } } } } milestones(first:1) { totalCount } commitComments(first:1) { totalCount } issues(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { timeline(first:1) { totalCount } comments(first:1) { totalCount } } } releases(first:1) { totalCount } projects(first:1) { totalCount } } } } }"
   }
 EOF
   }
