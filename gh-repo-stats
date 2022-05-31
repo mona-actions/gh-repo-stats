@@ -269,7 +269,7 @@ Header() {
   #####################
   # Check GHE version #
   #####################
-  if [[ ! $(isCloud) ]]; then
+  if [[ "$(isCloud)" -eq 0  ]]; then
 
     META_RESPONSE=$(curl -kw '%{http_code}' -s --request GET \
     --url "${GITHUB_URL}"/meta \
@@ -577,9 +577,9 @@ isCloud() {
 ################################################################################
 #### Function isIncompatibleGHESVersion ########################################
 isCompatibleGHESVersion() {
-  if [[ ! $(isCloud) ]] && [[ "${VERSION_MAJOR}" -lt "3" ]]; then
-    if  [[ "${VERSION_MAJOR}" -eq "2" ]] && [[ "${VERSION_MINOR}" -ge "20" ]]; then
-      if [[ "${VERSION_MINOR}" -gt "21" ]]; then
+  if [[ "$(isCloud)" -eq 0  ]] && [[ "${VERSION_MAJOR}" -lt 3 ]]; then
+    if  [[ "${VERSION_MAJOR}" -eq 2 ]] && [[ "${VERSION_MINOR}" -ge 20 ]]; then
+      if [[ "${VERSION_MINOR}" -gt 21 ]]; then
         # GHES >= v2.22 (supported)
         echo 1;
       else
