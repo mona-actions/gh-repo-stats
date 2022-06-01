@@ -166,6 +166,9 @@ SLEEP_RETRY_COUNT='15'        # Number of times to try to sleep before giving up
 SLEEP_COUNTER='0'             # Counter of how many times we have gone to sleep
 EXISTING_FILE='0'             # Check if a file already exists
 OUTPUT="${OUTPUT_PARAM:-CSV}" # Output type CSV or Table
+VERSION="cloud"
+VERSION_MAJOR="0"
+VERSION_MINOR="0"
 
 ################################################################################
 ############################ FUNCTIONS #########################################
@@ -269,7 +272,7 @@ Header() {
   #####################
   # Check GHE version #
   #####################
-  if [[ "${GITHUB_URL}" != "https://api.github.com" ]]; then
+  if [[ "$(isCloud)" -eq 0  ]]; then
 
     META_RESPONSE=$(curl -kw '%{http_code}' -s --request GET \
     --url "${GITHUB_URL}"/meta \
@@ -291,11 +294,22 @@ Header() {
       echo "${META_DATA}"
     else
       VERSION=$(echo "${META_DATA}" | jq -r '.installed_version')
+
+      # Get major/minor versions
+      VERSION_MAJOR=$(echo "${VERSION}" | cut -d "." -f 1);
+      VERSION_MINOR=$(echo "${VERSION}" | cut -d "." -f 2);
+
+      # Validate supported versions
+      if [[ "$(isCompatibleGHESVersion)" -eq "0" ]]; then
+        echo "GitHub Enterprise Server v${VERSION} is not supported."
+        exit 1;
+      else
+        echo "GitHub Enterprise Server v${VERSION}"
+      fi
     fi
-  else
-    VERSION="cloud"
   fi
   Debug "Version: ${VERSION}"
+
 
   ###########################
   # Check org or input file #
@@ -489,8 +503,14 @@ GenerateFiles() {
     # Create Header in the file #
     #############################
     echo "Creating file header..."
+
+    IS_EMPTY_HEADER="Is_Empty,";
+    if [[ "$(isCompatibleGHESVersion)" -eq "2" ]]; then
+      IS_EMPTY_HEADER="";
+    fi
+
     # File format headers: ORG_NAME,REPO_NAME,IS_EMPTY,PUSHED_AT,UPDATED_AT,IS_FORK,REPO_SIZE,RECORD_CT,COLLABORATOR_CT,PROTECTED_BRANCH_CT,PR_REVIEW_CT,MILESTONE_CT,ISSUE_CT,PR_CT,PR_REVIEW_COMMENT_CT,COMMIT_COMMENT_CT,ISSUE_COMMENT_CT,ISSUE_EVENT_CT,RELEASE_CT,PROJECT_CT,GHE_URL/ORG_NAME/REPO_NAME,MIGRATION_ISSUE
-    echo "Org_Name,Repo_Name,Is_Empty,Last_Push,Last_Update,isFork,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Full_URL,Migration_Issue" >> "${OUTPUT_FILE_NAME}" 2>&1
+    echo "Org_Name,Repo_Name,${IS_EMPTY_HEADER}Last_Push,Last_Update,isFork,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Full_URL,Migration_Issue" >> "${OUTPUT_FILE_NAME}" 2>&1
 
     #######################
     # Load the error code #
@@ -549,6 +569,36 @@ CheckAdminRights() {
   fi
 }
 ################################################################################
+#### Function isGHEC ###########################################################
+isCloud() {
+  if [[ "${GITHUB_URL}" != "https://api.github.com" ]]; then
+    echo 0;
+  else
+    echo 1;
+  fi
+}
+################################################################################
+#### Function isIncompatibleGHESVersion ########################################
+isCompatibleGHESVersion() {
+  if [[ "$(isCloud)" -eq 0  ]] && [[ "${VERSION_MAJOR}" -lt 3 ]]; then
+    if  [[ "${VERSION_MAJOR}" -eq 2 ]] && [[ "${VERSION_MINOR}" -ge 20 ]]; then
+      if [[ "${VERSION_MINOR}" -gt 21 ]]; then
+        # GHES >= v2.22 (supported)
+        echo 1;
+      else
+        # GHES v2.20 & v2.21 (no isEmpty supported)
+        echo 2;
+      fi
+    else
+      # GHES < v2.20 (not supported)
+      echo 0;
+    fi
+  else
+    # GHEC or GHES >= v3 (supported)
+    echo 1;
+  fi
+}
+################################################################################
 #### Function GetOrgsFromFile ##################################################
 GetOrgsFromFile() {
   # shellcheck disable=SC2034
@@ -585,10 +635,22 @@ CheckAPILimit() {
   ##############################################################
   # Check what is remaining, and if 0, we need to sleep it off #
   ##############################################################
-  API_REMAINING_CMD=$(curl -s -X GET \
+  API_REMAINING_REQUEST=$(curl -s -X GET \
     --url "${GITHUB_URL}/rate_limit" \
-    -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-    |  jq -r '.resources.graphql.remaining' 2>&1)
+    -H "Authorization: Bearer ${GITHUB_TOKEN}")
+
+  Debug "DEBUG --- API REMAINING DATA BLOCK:"
+  DebugJQ "${API_REMAINING_REQUEST}"
+
+  API_REMAINING_MESSAGE=$(echo "${API_REMAINING_REQUEST}" \
+    | jq -r '.message' 2>&1)
+
+  if [[ "${API_REMAINING_MESSAGE}" != "Rate limiting is not enabled." ]]; then
+    API_REMAINING=$(echo "${API_REMAINING_REQUEST}" \
+      | jq -r '.resources.graphql.remaining' 2>&1);
+  else
+    API_REMAINING=9999999999
+  fi
 
   #######################
   # Load the error code #
@@ -600,14 +662,14 @@ CheckAPILimit() {
   ##############################
   if [ "${ERROR_CODE}" -ne 0 ]; then
     echo  "ERROR! Failed to get valid response back from GitHub API!"
-    echo "ERROR:[${API_REMAINING_CMD}]"
+    echo "ERROR:[${API_REMAINING}]"
     exit 1
   fi
 
   ##########################################
   # Check to see if we have API calls left #
   ##########################################
-  if [ "${API_REMAINING_CMD}" -eq 0 ]; then
+  if [[ "${API_REMAINING}" -eq 0 ]]; then
     # Increment the sleep counter
     ((SLEEP_COUNTER++))
     # Warn the user
@@ -624,8 +686,10 @@ CheckAPILimit() {
       # Get some sleep...
       sleep "${SLEEP}"
     fi
+  elif [[ "${API_REMAINING}" == 9999999999 ]]; then
+    echo "API rate limiting is not enabled."
   else
-    echo "[${API_REMAINING_CMD}] API attempts remaining..."
+    echo "[${API_REMAINING}] API attempts remaining..."
   fi
 }
 ################################################################################
@@ -636,9 +700,14 @@ GetRepos() {
   ##############################
   function generate_graphql_data()
   {
+    # When the version is 2.21, we need to remove the isEmpty flag
+    IS_EMPTY_FLAG="isEmpty";
+    if [[ "$(isCompatibleGHESVersion)" -eq "2" ]]; then
+      IS_EMPTY_FLAG="";
+    fi
     cat <<EOF
   {
-  "query":"query { organization(login: \"${ORG_NAME}\") { repositories(first:${REPO_PAGE_SIZE}${REPO_NEXT_PAGE}) { totalDiskUsage pageInfo { hasPreviousPage hasNextPage hasPreviousPage endCursor } nodes { owner { login } name nameWithOwner diskUsage isEmpty pushedAt updatedAt isFork collaborators(first:1) { totalCount } branchProtectionRules(first:1) { totalCount } pullRequests(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { number commits(first:1){ totalCount } timeline(first:1) { totalCount } comments(first:1) { totalCount } reviews(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { comments(first:1) { totalCount } } } } } milestones(first:1) { totalCount } commitComments(first:1) { totalCount } issues(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { timeline(first:1) { totalCount } comments(first:1) { totalCount } } } releases(first:1) { totalCount } projects(first:1) { totalCount } } } } }"
+  "query":"query { organization(login: \"${ORG_NAME}\") { repositories(first:${REPO_PAGE_SIZE}${REPO_NEXT_PAGE}) { totalDiskUsage pageInfo { hasPreviousPage hasNextPage hasPreviousPage endCursor } nodes { owner { login } name nameWithOwner diskUsage ${IS_EMPTY_FLAG} pushedAt updatedAt isFork collaborators(first:1) { totalCount } branchProtectionRules(first:1) { totalCount } pullRequests(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { number commits(first:1){ totalCount } timeline(first:1) { totalCount } comments(first:1) { totalCount } reviews(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { comments(first:1) { totalCount } } } } } milestones(first:1) { totalCount } commitComments(first:1) { totalCount } issues(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { timeline(first:1) { totalCount } comments(first:1) { totalCount } } } releases(first:1) { totalCount } projects(first:1) { totalCount } } } } }"
   }
 EOF
   }
@@ -759,7 +828,12 @@ ParseRepoData() {
       REPO_SIZE_KB=$(_jq '.diskUsage')
       REPO_SIZE=$(ConvertKBToMB "${REPO_SIZE_KB}")
 
-      IS_EMPTY=$(_jq '.isEmpty')
+      # Look for isEmpty property only if it's supported
+      IS_EMPTY="";
+      if [[ "$(isCompatibleGHESVersion)" -eq "1" ]]; then
+        IS_EMPTY="$(_jq '.isEmpty'),"
+      fi
+
       PUSHED_AT=$(_jq '.pushedAt')
       UPDATED_AT=$(_jq '.updatedAt')
       IS_FORK=$(_jq '.isFork')
@@ -814,7 +888,7 @@ ParseRepoData() {
       ########################
       # Write it to the file #
       ########################
-      echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY},${PUSHED_AT},${UPDATED_AT},${IS_FORK},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${GHE_URL}/${ORG_NAME}/${REPO_NAME},${MIGRATION_ISSUE}" >> "${OUTPUT_FILE_NAME}"
+      echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY}${PUSHED_AT},${UPDATED_AT},${IS_FORK},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${GHE_URL}/${ORG_NAME}/${REPO_NAME},${MIGRATION_ISSUE}" >> "${OUTPUT_FILE_NAME}"
 
       #######################
       # Load the error code #
