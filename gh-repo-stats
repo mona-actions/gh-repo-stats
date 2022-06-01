@@ -642,11 +642,11 @@ CheckAPILimit() {
   Debug "DEBUG --- API REMAINING DATA BLOCK:"
   DebugJQ "${API_REMAINING_REQUEST}"
 
-  API_REMAINING_MESSAGE=$(echo ${API_REMAINING_REQUEST} \
+  API_REMAINING_MESSAGE=$(echo "${API_REMAINING_REQUEST}" \
     | jq -r '.message' 2>&1)
 
   if [[ "${API_REMAINING_MESSAGE}" != "Rate limiting is not enabled." ]]; then
-    API_REMAINING=$(echo ${API_REMAINING_REQUEST} \
+    API_REMAINING=$(echo "${API_REMAINING_REQUEST}" \
       | jq -r '.resources.graphql.remaining' 2>&1);
   else
     API_REMAINING=9999999999
