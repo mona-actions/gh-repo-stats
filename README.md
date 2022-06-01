@@ -4,9 +4,17 @@
 This information outlines the underlying **GitHub** `metadata` associated with your repository. This information is key to understanding how long a migration of the data from one instance of **GitHub** to another will take.
 When the extension is run to completion, you will be presented with a visual table, or `*.csv` file to parse for all relevant information.
 
+## GHES Compatibility
+The __gh-repo-stats__ extension supports the following versions of GitHub Enterpise Server (GHES):
+
+- Supported: >= 2.20
+- Not Supported: <= v2.19
+
+_It should be noted that support for versions < 3.1 is limited._
+
 ## Prerequisites
 
-- Operating system that can run shell scripts(*bash/sh*)
+- Operating system that can run shell scripts (*bash/sh*)
 - **GitHub CLI** installed by following this documentation: <https://github.com/cli/cli#installation>
 - **jq** command-line JSON parser: <https://stedolan.github.io/jq/>
 
