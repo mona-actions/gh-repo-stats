@@ -635,10 +635,22 @@ CheckAPILimit() {
   ##############################################################
   # Check what is remaining, and if 0, we need to sleep it off #
   ##############################################################
-  API_REMAINING_CMD=$(curl -s -X GET \
+  API_REMAINING_REQUEST=$(curl -s -X GET \
     --url "${GITHUB_URL}/rate_limit" \
-    -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-    |  jq -r '.resources.graphql.remaining' 2>&1)
+    -H "Authorization: Bearer ${GITHUB_TOKEN}")
+
+  Debug "DEBUG --- API REMAINING DATA BLOCK:"
+  DebugJQ "${API_REMAINING_REQUEST}"
+
+  API_REMAINING_MESSAGE=$(echo ${API_REMAINING_REQUEST} \
+    | jq -r '.message' 2>&1)
+
+  if [[ "${API_REMAINING_MESSAGE}" != "Rate limiting is not enabled." ]]; then
+    API_REMAINING=$(echo ${API_REMAINING_REQUEST} \
+      | jq -r '.resources.graphql.remaining' 2>&1);
+  else
+    API_REMAINING=9999999999
+  fi
 
   #######################
   # Load the error code #
@@ -650,14 +662,14 @@ CheckAPILimit() {
   ##############################
   if [ "${ERROR_CODE}" -ne 0 ]; then
     echo  "ERROR! Failed to get valid response back from GitHub API!"
-    echo "ERROR:[${API_REMAINING_CMD}]"
+    echo "ERROR:[${API_REMAINING}]"
     exit 1
   fi
 
   ##########################################
   # Check to see if we have API calls left #
   ##########################################
-  if [ "${API_REMAINING_CMD}" -eq 0 ]; then
+  if [[ "${API_REMAINING}" -eq 0 ]]; then
     # Increment the sleep counter
     ((SLEEP_COUNTER++))
     # Warn the user
@@ -674,8 +686,10 @@ CheckAPILimit() {
       # Get some sleep...
       sleep "${SLEEP}"
     fi
+  elif [[ "${API_REMAINING}" == 9999999999 ]]; then
+    echo "API rate limiting is not enabled."
   else
-    echo "[${API_REMAINING_CMD}] API attempts remaining..."
+    echo "[${API_REMAINING}] API attempts remaining..."
   fi
 }
 ################################################################################
