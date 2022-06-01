@@ -166,6 +166,9 @@ SLEEP_RETRY_COUNT='15'        # Number of times to try to sleep before giving up
 SLEEP_COUNTER='0'             # Counter of how many times we have gone to sleep
 EXISTING_FILE='0'             # Check if a file already exists
 OUTPUT="${OUTPUT_PARAM:-CSV}" # Output type CSV or Table
+VERSION="cloud"
+VERSION_MAJOR="0"
+VERSION_MINOR="0"
 
 ################################################################################
 ############################ FUNCTIONS #########################################
@@ -298,12 +301,12 @@ Header() {
 
       # Validate supported versions
       if [[ "$(isCompatibleGHESVersion)" -eq "0" ]]; then
-        echo "GitHub Enterprise version ${VERSION} is not supported."
+        echo "GitHub Enterprise Server v${VERSION} is not supported."
         exit 1;
+      else
+        echo "GitHub Enterprise Server v${VERSION}"
       fi
     fi
-  else
-    VERSION="cloud"
   fi
   Debug "Version: ${VERSION}"
 
