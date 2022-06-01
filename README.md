@@ -5,12 +5,12 @@ This information outlines the underlying **GitHub** `metadata` associated with y
 When the extension is run to completion, you will be presented with a visual table, or `*.csv` file to parse for all relevant information.
 
 ## GHES Compatibility
-The __gh-repo-stats__ extension supports the following versions of GitHub Enterpise Server (GHES):
+The **gh-repo-stats** extension supports the following versions of GitHub Enterpise Server (GHES):
 
 - Supported: >= 2.20
 - Not Supported: <= v2.19
 
-_It should be noted that support for versions < 3.1 is limited._
+*It should be noted that support for versions < 3.1 is limited.*
 
 ## Prerequisites
 
