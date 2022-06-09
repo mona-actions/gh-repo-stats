@@ -48,8 +48,9 @@ Options:
                                     If a timeout occurs, reduce this value
     -e, --extra-page-size         : Set the pagination size for subsequent, paginated GraphQL queries - defaults to 20
                                     If a timeout occurs, reduce this value
-    -o, --org                     : Name of the GitHub Organization to be analyzed           
+    -o, --org                     : Name of the GitHub Organization to be analyzed
     -O, --output                  : Determine the output. Can either be "CSV" or "Table" Default: CSV
+    -rl, --repo-list              : Path to a file with a list of repositories to scan, one per line, newline delimited
 ```
 ## How to run
 

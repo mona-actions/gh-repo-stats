@@ -74,6 +74,7 @@ Options:
                                     If a timeout occurs, reduce this value
     -o, --org                     : Name of the GitHub Organization to be analyzed           
     -O, --output                  : Determine the output. Can either be "CSV" or "Table" Default: CSV
+    -rl, --repo-list              : Path to a file with a list of repositories to scan, one per line, newline delimited
 
 Description:
 get-repo-statistics scans an organization or list of organizations for all repositories and gathers size statistics for each repository
@@ -133,6 +134,10 @@ while (( "$#" )); do
       ORG_NAME=$2
       shift 2
       ;;
+    -rl|--repo-list)
+      REPO_LIST_FILE=$2
+      shift 2
+      ;;
     --) # end argument parsing
       shift
       break
@@ -166,6 +171,7 @@ SLEEP_RETRY_COUNT='15'        # Number of times to try to sleep before giving up
 SLEEP_COUNTER='0'             # Counter of how many times we have gone to sleep
 EXISTING_FILE='0'             # Check if a file already exists
 OUTPUT="${OUTPUT_PARAM:-CSV}" # Output type CSV or Table
+REPO_LIST_ARRAY=()            # Array of repo names to be analyzed
 VERSION="cloud"
 VERSION_MAJOR="0"
 VERSION_MINOR="0"
@@ -756,7 +762,7 @@ EOF
     #############################################
     # Parse all the repo data out of data block #
     #############################################
-    ParseRepoData "${DATA_BLOCK}"
+    ParseRepos "${DATA_BLOCK}"
 
     ########################################
     # See if we need to loop for more data #
@@ -789,21 +795,36 @@ EOF
   fi
 }
 ################################################################################
-#### Function ParseRepoData ####################################################
-ParseRepoData() {
+#### Function ParseRepos #######################################################
+ParseRepos() {
   ##########################
   # Pull in the data block #
   ##########################
   PARSE_DATA=$1
 
   REPOS=$(echo "${PARSE_DATA}" | jq -r '.data.organization.repositories.nodes')
-  for REPO in $(echo -n "${REPOS}" | jq -r '.[] | @base64'); do
+  for REPO_DATA in $(echo -n "${REPOS}" | jq -r '.[] | @base64'); do
     _jq() {
-    echo -n "${REPO}" | base64 --decode | jq -r "${1}"
+    echo -n "${REPO_DATA}" | base64 --decode | jq -r "${1}"
     }
 
     OWNER=$(_jq '.owner.login' | tr '[:upper:]' '[:lower:]')
     REPO_NAME=$(_jq '.name' | tr '[:upper:]' '[:lower:]')
+
+    #########################################################
+    # Need to see if the user gave a repo list to filter on #
+    #########################################################
+    if [[ -n "${REPO_LIST_FILE}" ]]; then
+      # convert REPO_NAME to lowercase
+      CHECK_REPO_NAME=$(echo "${REPO_NAME}" | tr '[:upper:]' '[:lower:]')
+      # Check if the repo name is in the list
+      for REPO in "${REPO_LIST_ARRAY[@]}"; do
+        if [[ "${REPO}" == "${CHECK_REPO_NAME}" ]]; then
+          # Found a match, we can continue
+          ParseRepoData "${REPO_DATA}"
+        fi
+      done
+    fi
 
     #################################################################
     # Need to check if this repo has already been parsed in the doc #
@@ -822,114 +843,126 @@ ParseRepoData() {
       # Found this in the csv already
       echo "Repo:[${OWNER}/${REPO_NAME}] has previously been analyzed, moving on..."
     else
-      # Need to run analysis
       echo "Analyzing Repo: ${REPO_NAME}"
-
-      REPO_SIZE_KB=$(_jq '.diskUsage')
-      REPO_SIZE=$(ConvertKBToMB "${REPO_SIZE_KB}")
-
-      # Look for isEmpty property only if it's supported
-      IS_EMPTY="";
-      if [[ "$(isCompatibleGHESVersion)" -eq "1" ]]; then
-        IS_EMPTY="$(_jq '.isEmpty'),"
-      fi
-
-      PUSHED_AT=$(_jq '.pushedAt')
-      UPDATED_AT=$(_jq '.updatedAt')
-      IS_FORK=$(_jq '.isFork')
-
-      MILESTONE_CT=$(_jq '.milestones.totalCount')
-      COLLABORATOR_CT=$(_jq '.collaborators.totalCount')
-      PR_CT=$(_jq '.pullRequests.totalCount')
-      ISSUE_CT=$(_jq '.issues.totalCount')
-      RELEASE_CT=$(_jq '.releases.totalCount')
-      COMMIT_COMMENT_CT=$(_jq '.commitComments.totalCount')
-      PROJECT_CT=$(_jq '.projects.totalCount')
-
-      if [[ "${VERSION}" == "cloud" ]]; then
-        PROTECTED_BRANCH_CT=$(_jq '.branchProtectionRules.totalCount')
-      else
-        PROTECTED_BRANCH_CT=$(_jq '.protectedBranches.totalCount')
-      fi
-
-      ISSUE_EVENT_CT=0
-      ISSUE_COMMENT_CT=0
-      PR_REVIEW_CT=0
-      PR_REVIEW_COMMENT_CT=0
-
-      ##################
-      # Analyze Issues #
-      ##################
-      if [[ $ISSUE_CT -ne 0 ]]; then
-        AnalyzeIssues "${REPO}"
-      fi
-
-      #########################
-      # Analyze Pull Requests #
-      #########################
-      if [[ $PR_CT -ne 0 ]]; then
-        AnalyzePullRequests "${REPO}"
-      fi
-
-      ###########################
-      # Build the output string #
-      ###########################
-      RECORD_CT=$((COLLABORATOR_CT + PROTECTED_BRANCH_CT + PR_REVIEW_CT + MILESTONE_CT + ISSUE_CT + PR_CT + PR_REVIEW_COMMENT_CT + COMMIT_COMMENT_CT + ISSUE_COMMENT_CT + ISSUE_EVENT_CT + RELEASE_CT + PROJECT_CT))
-
-      ####################################
-      # Get if this is a migration issue #
-      ####################################
-      MIGRATION_ISSUE=$(MarkMigrationIssues "${REPO_SIZE}" "${RECORD_CT}")
-      if [ "${MIGRATION_ISSUE}" -eq 0 ]; then
-        MIGRATION_ISSUE="TRUE"
-      else
-        MIGRATION_ISSUE="FALSE"
-      fi
-      ########################
-      # Write it to the file #
-      ########################
-      echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY}${PUSHED_AT},${UPDATED_AT},${IS_FORK},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${GHE_URL}/${ORG_NAME}/${REPO_NAME},${MIGRATION_ISSUE}" >> "${OUTPUT_FILE_NAME}"
-
-      #######################
-      # Load the error code #
-      #######################
-      ERROR_CODE=$?
-
-      ##############################
-      # Check the shell for errors #
-      ##############################
-      if [ $ERROR_CODE -ne 0 ]; then
-        echo "ERROR! Failed to write output to file:[${OUTPUT_FILE_NAME}]"
-        exit 1
-      fi
-
-      ##############################
-      # Check to anazyle conflicts #
-      ##############################
-      if [[ ${ANALYZE_CONFLICTS} -eq 1 ]]; then
-        ### Check the repository name against array of all previously-processed repositories
-        REPO_INDEX=-1
-
-        for ITEM in "${!REPO_LIST[@]}"; do
-          if [[ "${REPO_LIST[${ITEM}]}" = "${REPO_NAME}" ]]; then
-            REPO_INDEX=${i}
-          fi
-        done
-
-        ### If this is the first instance of that repository name, add it to the list and add the group name to its array
-        if [[ ${REPO_INDEX} -eq -1 ]]; then
-          Debug "Repo: ${REPO_NAME} is unique. Adding to the list!"
-          REPO_LIST+=( "${REPO_NAME}" )
-          GROUP_LIST[(( ${#REPO_LIST[@]} - 1 ))]=${ORG_NAME}
-          NUMBER_OF_CONFLICTS[(( ${#REPO_LIST[@]} - 1 ))]=1
-        else
-          echo "Repo: ${REPO_NAME} already exists. Adding ${ORG_NAME} to the conflict list"
-          GROUP_LIST[${REPO_INDEX}]+=" ${ORG_NAME}"
-          (( NUMBER_OF_CONFLICTS[REPO_INDEX]++ ))
-        fi
-      fi
+      ParseRepoData "${REPO_DATA}"
     fi
   done
+}
+################################################################################
+#### Function ParseRepoData ####################################################
+ParseRepoData() {
+  # Pull in the repos data block
+  REPO_DATA=$1
+  # Convert the format to JSON
+  _jq() {
+    echo -n "${REPO_DATA}" | base64 --decode | jq -r "${1}"
+  }
+
+  OWNER=$(_jq '.owner.login' | tr '[:upper:]' '[:lower:]')
+  REPO_NAME=$(_jq '.name' | tr '[:upper:]' '[:lower:]')
+  REPO_SIZE_KB=$(_jq '.diskUsage')
+  REPO_SIZE=$(ConvertKBToMB "${REPO_SIZE_KB}")
+
+  # Look for isEmpty property only if it's supported
+  IS_EMPTY="";
+  if [[ "$(isCompatibleGHESVersion)" -eq "1" ]]; then
+    IS_EMPTY="$(_jq '.isEmpty'),"
+  fi
+
+  PUSHED_AT=$(_jq '.pushedAt')
+  UPDATED_AT=$(_jq '.updatedAt')
+  IS_FORK=$(_jq '.isFork')
+
+  MILESTONE_CT=$(_jq '.milestones.totalCount')
+  COLLABORATOR_CT=$(_jq '.collaborators.totalCount')
+  PR_CT=$(_jq '.pullRequests.totalCount')
+  ISSUE_CT=$(_jq '.issues.totalCount')
+  RELEASE_CT=$(_jq '.releases.totalCount')
+  COMMIT_COMMENT_CT=$(_jq '.commitComments.totalCount')
+  PROJECT_CT=$(_jq '.projects.totalCount')
+
+  if [[ "${VERSION}" == "cloud" ]]; then
+    PROTECTED_BRANCH_CT=$(_jq '.branchProtectionRules.totalCount')
+  else
+    PROTECTED_BRANCH_CT=$(_jq '.protectedBranches.totalCount')
+  fi
+
+  ISSUE_EVENT_CT=0
+  ISSUE_COMMENT_CT=0
+  PR_REVIEW_CT=0
+  PR_REVIEW_COMMENT_CT=0
+
+  ##################
+  # Analyze Issues #
+  ##################
+  if [[ $ISSUE_CT -ne 0 ]]; then
+    AnalyzeIssues "${REPO}"
+  fi
+
+  #########################
+  # Analyze Pull Requests #
+  #########################
+  if [[ $PR_CT -ne 0 ]]; then
+    AnalyzePullRequests "${REPO}"
+  fi
+
+  ###########################
+  # Build the output string #
+  ###########################
+  RECORD_CT=$((COLLABORATOR_CT + PROTECTED_BRANCH_CT + PR_REVIEW_CT + MILESTONE_CT + ISSUE_CT + PR_CT + PR_REVIEW_COMMENT_CT + COMMIT_COMMENT_CT + ISSUE_COMMENT_CT + ISSUE_EVENT_CT + RELEASE_CT + PROJECT_CT))
+
+  ####################################
+  # Get if this is a migration issue #
+  ####################################
+  MIGRATION_ISSUE=$(MarkMigrationIssues "${REPO_SIZE}" "${RECORD_CT}")
+  if [ "${MIGRATION_ISSUE}" -eq 0 ]; then
+    MIGRATION_ISSUE="TRUE"
+  else
+    MIGRATION_ISSUE="FALSE"
+  fi
+  ########################
+  # Write it to the file #
+  ########################
+  echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY}${PUSHED_AT},${UPDATED_AT},${IS_FORK},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${GHE_URL}/${ORG_NAME}/${REPO_NAME},${MIGRATION_ISSUE}" >> "${OUTPUT_FILE_NAME}"
+
+  #######################
+  # Load the error code #
+  #######################
+  ERROR_CODE=$?
+
+  ##############################
+  # Check the shell for errors #
+  ##############################
+  if [ $ERROR_CODE -ne 0 ]; then
+    echo "ERROR! Failed to write output to file:[${OUTPUT_FILE_NAME}]"
+    exit 1
+  fi
+
+  ##############################
+  # Check to anazyle conflicts #
+  ##############################
+  if [[ ${ANALYZE_CONFLICTS} -eq 1 ]]; then
+    ### Check the repository name against array of all previously-processed repositories
+    REPO_INDEX=-1
+
+    for ITEM in "${!REPO_LIST[@]}"; do
+      if [[ "${REPO_LIST[${ITEM}]}" = "${REPO_NAME}" ]]; then
+        REPO_INDEX=${i}
+      fi
+    done
+
+    ### If this is the first instance of that repository name, add it to the list and add the group name to its array
+    if [[ ${REPO_INDEX} -eq -1 ]]; then
+      Debug "Repo: ${REPO_NAME} is unique. Adding to the list!"
+      REPO_LIST+=( "${REPO_NAME}" )
+      GROUP_LIST[(( ${#REPO_LIST[@]} - 1 ))]=${ORG_NAME}
+      NUMBER_OF_CONFLICTS[(( ${#REPO_LIST[@]} - 1 ))]=1
+    else
+      echo "Repo: ${REPO_NAME} already exists. Adding ${ORG_NAME} to the conflict list"
+      GROUP_LIST[${REPO_INDEX}]+=" ${ORG_NAME}"
+      (( NUMBER_OF_CONFLICTS[REPO_INDEX]++ ))
+    fi
+  fi
 }
 ################################################################################
 #### Function AnalyzeIssues ####################################################
@@ -1492,9 +1525,14 @@ ValidateJQ() {
 #### Function ValidateInput ####################################################
 ################################################################################
 ValidateInput() {
-  if [[ $OUTPUT != "Table" ]] && [[ $OUTPUT != "CSV" ]]; then
-    echo "Output parameter (-O, --output) '${OUTPUT}' is invalid. Must be 'CSV' or 'Table'"
-    exit 1;
+  # Check if REPO_LIST_FILE is empty
+  if [[ -n "${REPO_LIST_FILE}" ]]; then
+    # Put the contents of the file into an array
+    IFS=',' read -r -a REPO_LIST_ARRAY <<< "${REPO_LIST_FILE}"
+    # Make all contents of the array lowercase
+    for i in "${!REPO_LIST_ARRAY[@]}"; do
+      REPO_LIST_ARRAY[$i]=$(echo "${REPO_LIST_ARRAY[$i]}" | tr '[:upper:]' '[:lower:]')
+    done
   fi
 }
 ################################################################################
@@ -1515,6 +1553,11 @@ ValidateJQ
 # Generate File #
 #################
 GenerateFiles
+
+######################
+# Validate the input #
+######################
+ValidateInput
 
 ########################
 # Check the input file #
