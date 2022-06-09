@@ -135,7 +135,7 @@ while (( "$#" )); do
       shift 2
       ;;
     -rl|--repo-list)
-      REPO_LIST=$2
+      REPO_LIST_FILE=$2
       shift 2
       ;;
     --) # end argument parsing
@@ -814,7 +814,7 @@ ParseRepos() {
     #########################################################
     # Need to see if the user gave a repo list to filter on #
     #########################################################
-    if [[ -n "${REPO_LIST}" ]]; then
+    if [[ -n "${REPO_LIST_FILE}" ]]; then
       # convert REPO_NAME to lowercase
       CHECK_REPO_NAME=$(echo "${REPO_NAME}" | tr '[:upper:]' '[:lower:]')
       # Check if the repo name is in the list
@@ -1525,10 +1525,10 @@ ValidateJQ() {
 #### Function ValidateInput ####################################################
 ################################################################################
 ValidateInput() {
-  # Check if REPO_LIST is empty
-  if [[ -n "${REPO_LIST}" ]]; then
+  # Check if REPO_LIST_FILE is empty
+  if [[ -n "${REPO_LIST_FILE}" ]]; then
     # Put the contents of the file into an array
-    IFS=',' read -r -a REPO_LIST_ARRAY <<< "${REPO_LIST}"
+    IFS=',' read -r -a REPO_LIST_ARRAY <<< "${REPO_LIST_FILE}"
     # Make all contents of the array lowercase
     for i in "${!REPO_LIST_ARRAY[@]}"; do
       REPO_LIST_ARRAY[$i]=$(echo "${REPO_LIST_ARRAY[$i]}" | tr '[:upper:]' '[:lower:]')
