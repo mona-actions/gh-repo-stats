@@ -842,7 +842,7 @@ ParseRepos() {
     if [ ${ERROR_CODE} -eq 0 ]; then
       # Found this in the csv already
       echo "Repo:[${OWNER}/${REPO_NAME}] has previously been analyzed, moving on..."
-    else
+    elif [ ${ERROR_CODE} -ne 0 ] && [[ -z "${REPO_LIST_FILE}" ]]; then
       echo "Analyzing Repo: ${REPO_NAME}"
       ParseRepoData "${REPO_DATA}"
     fi
@@ -896,14 +896,14 @@ ParseRepoData() {
   # Analyze Issues #
   ##################
   if [[ $ISSUE_CT -ne 0 ]]; then
-    AnalyzeIssues "${REPO}"
+    AnalyzeIssues "${REPO_DATA}"
   fi
 
   #########################
   # Analyze Pull Requests #
   #########################
   if [[ $PR_CT -ne 0 ]]; then
-    AnalyzePullRequests "${REPO}"
+    AnalyzePullRequests "${REPO_DATA}"
   fi
 
   ###########################
@@ -1527,8 +1527,9 @@ ValidateJQ() {
 ValidateInput() {
   # Check if REPO_LIST_FILE is empty
   if [[ -n "${REPO_LIST_FILE}" ]]; then
-    # Put the contents of the file into an array
-    IFS=',' read -r -a REPO_LIST_ARRAY <<< "${REPO_LIST_FILE}"
+    echo "User provided a repo list file. Mapping contents..."
+    # Put the contents of the file into an array seperated by newlines
+    IFS=$'\n' read -d '' -r -a REPO_LIST_ARRAY < "${REPO_LIST_FILE}"
     # Make all contents of the array lowercase
     for i in "${!REPO_LIST_ARRAY[@]}"; do
       REPO_LIST_ARRAY[$i]=$(echo "${REPO_LIST_ARRAY[$i]}" | tr '[:upper:]' '[:lower:]')
