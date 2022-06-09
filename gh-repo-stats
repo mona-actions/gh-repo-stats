@@ -74,7 +74,7 @@ Options:
                                     If a timeout occurs, reduce this value
     -o, --org                     : Name of the GitHub Organization to be analyzed           
     -O, --output                  : Determine the output. Can either be "CSV" or "Table" Default: CSV
-    -r, --repo-list               : Path to a file with a list of repositories to scan, one per line, newline delimited
+    -rl, --repo-list              : Path to a file with a list of repositories to scan, one per line, newline delimited
 
 Description:
 get-repo-statistics scans an organization or list of organizations for all repositories and gathers size statistics for each repository
@@ -134,7 +134,7 @@ while (( "$#" )); do
       ORG_NAME=$2
       shift 2
       ;;
-    -r|--repo-list)
+    -rl|--repo-list)
       REPO_LIST=$2
       shift 2
       ;;
@@ -818,7 +818,7 @@ ParseRepos() {
       # convert REPO_NAME to lowercase
       CHECK_REPO_NAME=$(echo "${REPO_NAME}" | tr '[:upper:]' '[:lower:]')
       # Check if the repo name is in the list
-      for REPO in '${REPO_LIST_ARRAY[@]}'; do
+      for REPO in "${REPO_LIST_ARRAY[@]}"; do
         if [[ "${REPO}" == "${CHECK_REPO_NAME}" ]]; then
           # Found a match, we can continue
           ParseRepoData "${REPO_DATA}"
