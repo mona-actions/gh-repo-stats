@@ -732,8 +732,12 @@ EOF
 
   REPO_RESPONSE_CODE="${REPO_RESPONSE:(-3)}"
   DATA_BLOCK="${REPO_RESPONSE::${#REPO_RESPONSE}-4}"
-
-  if [[ "$REPO_RESPONSE_CODE" != "200" ]]; then
+  
+  if [[ "$REPO_RESPONSE_CODE" == "502" ]]; then
+    # We are using to big of a page size, so we need to do smaller pagination
+    echo "Error 502: We are using to big of a page size, so we need to do smaller pagination"
+    echo "Please set --repo-page-size to a lower value"
+  elif [[ "$REPO_RESPONSE_CODE" != "200" ]]; then
     echo "Error getting Repos for Org: ${ORG_NAME}"
     echo "${DATA_BLOCK}"
   else
@@ -824,29 +828,29 @@ ParseRepos() {
           ParseRepoData "${REPO_DATA}"
         fi
       done
-    fi
+    else
+      #################################################################
+      # Need to check if this repo has already been parsed in the doc #
+      #################################################################
+      grep "${OWNER},${REPO_NAME}," "${OUTPUT_FILE_NAME}" >/dev/null 2>&1
 
-    #################################################################
-    # Need to check if this repo has already been parsed in the doc #
-    #################################################################
-    grep "${OWNER},${REPO_NAME}," "${OUTPUT_FILE_NAME}" >/dev/null 2>&1
+      #######################
+      # Load the error code #
+      #######################
+      ERROR_CODE=$?
 
-    #######################
-    # Load the error code #
-    #######################
-    ERROR_CODE=$?
-
-    ##############################
-    # Check the shell for errors #
-    ##############################
-    if [ ${ERROR_CODE} -eq 0 ]; then
-      # Found this in the csv already
-      echo "Repo:[${OWNER}/${REPO_NAME}] has previously been analyzed, moving on..."
-    elif [ ${ERROR_CODE} -ne 0 ] && [[ -z "${REPO_LIST_FILE}" ]]; then
-      echo "Analyzing Repo: ${REPO_NAME}"
-      ParseRepoData "${REPO_DATA}"
-    fi
-  done
+      ##############################
+      # Check the shell for errors #
+      ##############################
+      if [ ${ERROR_CODE} -eq 0 ]; then
+        # Found this in the csv already
+        echo "Repo:[${OWNER}/${REPO_NAME}] has previously been analyzed, moving on..."
+      elif [ ${ERROR_CODE} -ne 0 ] && [[ -z "${REPO_LIST_FILE}" ]]; then
+        echo "Analyzing Repo: ${REPO_NAME}"
+        ParseRepoData "${REPO_DATA}"
+      fi
+    done
+  fi
 }
 ################################################################################
 #### Function ParseRepoData ####################################################
@@ -1045,6 +1049,10 @@ EOF
   ISSUE_RESPONSE_CODE="${ISSUE_RESPONSE:(-3)}"
   ISSUE_DATA="${ISSUE_RESPONSE::${#ISSUE_RESPONSE}-4}"
 
+  if [[ "${ISSUE_RESPONSE_CODE}" == "502" ]]; then
+    # We need to use a smaller page size
+    echo "Error 502: We are using to big of a page size, so we need to do smaller pagination"
+    echo "Please set --extra-page-size to a lower value"
   if [[ "${ISSUE_RESPONSE_CODE}" != "200" ]]; then
     echo "Error getting more Issues for Repo: ${OWNER}/${REPO_NAME}"
     echo "${ISSUE_DATA}"
