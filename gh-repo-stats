@@ -849,8 +849,8 @@ ParseRepos() {
         echo "Analyzing Repo: ${REPO_NAME}"
         ParseRepoData "${REPO_DATA}"
       fi
-    done
-  fi
+    fi
+  done
 }
 ################################################################################
 #### Function ParseRepoData ####################################################
