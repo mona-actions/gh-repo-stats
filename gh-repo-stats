@@ -1053,11 +1053,10 @@ EOF
     # We need to use a smaller page size
     echo "Error 502: We are using to big of a page size, so we need to do smaller pagination"
     echo "Please set --extra-page-size to a lower value"
-  if [[ "${ISSUE_RESPONSE_CODE}" != "200" ]]; then
+  elif [[ "${ISSUE_RESPONSE_CODE}" != "200" ]]; then
     echo "Error getting more Issues for Repo: ${OWNER}/${REPO_NAME}"
     echo "${ISSUE_DATA}"
   else
-
     Debug "ISSUE DATA BLOCK:"
     DebugJQ "${ISSUE_DATA}"
 
