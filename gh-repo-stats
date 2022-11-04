@@ -64,6 +64,7 @@ Options:
     -i, --input                   : Set path to a file with a list of organizations to scan, one per line, newline delimited
     -t, --token                   : Set Personal Access Token with repo scope - Looks for GITHUB_TOKEN environment
                                     variable if omitted
+    -y, --token-type              : Type of Personal Access. Can either "user" or "app" Default: user
     -r, --analyze-repo-conflicts  : Checks the Repo Name against repos in other organizations and generates a list
                                     of potential naming conflicts if those orgs are to be merged during migration
     -T, --analyze-team-conflicts  : Gathers each org's teams and checks against other orgs to generate a list of
@@ -104,6 +105,10 @@ while (( "$#" )); do
       ;;
     -t|--token)
       GITHUB_TOKEN=$2
+      shift 2
+      ;;
+    -y|--token-type)
+      GITHUB_TOKEN_TYPE=$2
       shift 2
       ;;
     -i|--input)
@@ -166,12 +171,13 @@ GITHUB_TOKEN=${GITHUB_TOKEN:-}         # Default to environment variable
 ###########
 # GLOBALS #
 ###########
-SLEEP='300'                   # Number of seconds to sleep if out of API calls
-SLEEP_RETRY_COUNT='15'        # Number of times to try to sleep before giving up
-SLEEP_COUNTER='0'             # Counter of how many times we have gone to sleep
-EXISTING_FILE='0'             # Check if a file already exists
-OUTPUT="${OUTPUT_PARAM:-CSV}" # Output type CSV or Table
-REPO_LIST_ARRAY=()            # Array of repo names to be analyzed
+SLEEP='300'                                   # Number of seconds to sleep if out of API calls
+SLEEP_RETRY_COUNT='15'                        # Number of times to try to sleep before giving up
+SLEEP_COUNTER='0'                             # Counter of how many times we have gone to sleep
+EXISTING_FILE='0'                             # Check if a file already exists
+OUTPUT="${OUTPUT_PARAM:-CSV}"                 # Output type CSV or Table
+REPO_LIST_ARRAY=()                            # Array of repo names to be analyzed
+GITHUB_TOKEN_TYPE=${GITHUB_TOKEN_TYPE:-user}  # Whether 'user' or 'app' PAT
 VERSION="cloud"
 VERSION_MAJOR="0"
 VERSION_MINOR="0"
@@ -240,38 +246,40 @@ Header() {
   ################################################################
   # Validate we can hit the endpoint by getting the current user #
   ################################################################
-  Debug "curl -kw '%{http_code}' -s -X GET \
-  --url ${GITHUB_URL}/user \
-  -H \"authorization: Bearer ************\""
-
-  USER_RESPONSE=$(curl -kw '%{http_code}' -s -X GET \
-    --url "${GITHUB_URL}"/user \
-    -H "authorization: Bearer ${GITHUB_TOKEN}")
-
-  Debug "USER_RESPONSE: "
-  Debug "${USER_RESPONSE}"
-
-  USER_RESPONSE_CODE="${USER_RESPONSE:(-3)}"
-  USER_DATA="${USER_RESPONSE::${#USER_RESPONSE}-4}"
-
-  DebugJQ "${USER_DATA}"
-
-  #######################
-  # Validate the return #
-  #######################
-  if [[ "$USER_RESPONSE_CODE" != "200" ]]; then
-    echo "Error getting user"
-    echo "${USER_DATA}"
-  else
-    USER_LOGIN=$(echo "${USER_DATA}" | jq -r '.login')
-    # Check for success
-    if [[ -z ${USER_LOGIN} ]]; then
-      # Got bad return
-      echo "ERROR! Failed to validate GHE instance:[${GITHUB_URL}]"
-      echo "Received error: ${USER_DATA}"
-      exit 1
+  if [[ ${GITHUB_TOKEN_TYPE} == "user" ]]; then
+    Debug "curl -kw '%{http_code}' -s -X GET \
+    --url ${GITHUB_URL}/user \
+    -H \"authorization: Bearer ************\""
+  
+    USER_RESPONSE=$(curl -kw '%{http_code}' -s -X GET \
+      --url "${GITHUB_URL}"/user \
+      -H "authorization: Bearer ${GITHUB_TOKEN}")
+  
+    Debug "USER_RESPONSE: "
+    Debug "${USER_RESPONSE}"
+  
+    USER_RESPONSE_CODE="${USER_RESPONSE:(-3)}"
+    USER_DATA="${USER_RESPONSE::${#USER_RESPONSE}-4}"
+  
+    DebugJQ "${USER_DATA}"
+  
+    #######################
+    # Validate the return #
+    #######################
+    if [[ "$USER_RESPONSE_CODE" != "200" ]]; then
+      echo "Error getting user"
+      echo "${USER_DATA}"
     else
-      Debug "Successfully validated access to GHE Instance..."
+      USER_LOGIN=$(echo "${USER_DATA}" | jq -r '.login')
+      # Check for success
+      if [[ -z ${USER_LOGIN} ]]; then
+        # Got bad return
+        echo "ERROR! Failed to validate GHE instance:[${GITHUB_URL}]"
+        echo "Received error: ${USER_DATA}"
+        exit 1
+      else
+        Debug "Successfully validated access to GHE Instance..."
+      fi
     fi
   fi
 
@@ -535,6 +543,12 @@ GenerateFiles() {
 ################################################################################
 #### Function CheckAdminRights #################################################
 CheckAdminRights() {
+
+  if [[ ${GITHUB_TOKEN_TYPE} == "app" ]]; then
+    echo "Skip checking user PAT admin rights for GitHub App token"
+    return 0
+  fi
+
   ################
   # Pull in vars #
   ################
