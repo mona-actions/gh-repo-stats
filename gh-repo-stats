@@ -727,7 +727,95 @@ GetRepos() {
     fi
     cat <<EOF
   {
-  "query":"query { organization(login: \"${ORG_NAME}\") { repositories(first:${REPO_PAGE_SIZE}${REPO_NEXT_PAGE}) { totalDiskUsage pageInfo { hasPreviousPage hasNextPage hasPreviousPage endCursor } nodes { owner { login } name nameWithOwner diskUsage ${IS_EMPTY_FLAG} pushedAt updatedAt isFork collaborators(first:1) { totalCount } branchProtectionRules(first:1) { totalCount } pullRequests(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { number commits(first:1){ totalCount } timeline(first:1) { totalCount } comments(first:1) { totalCount } reviews(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { comments(first:1) { totalCount } } } } } milestones(first:1) { totalCount } commitComments(first:1) { totalCount } issues(first:${REPO_PAGE_SIZE}) { totalCount pageInfo { hasNextPage endCursor } nodes { timeline(first:1) { totalCount } comments(first:1) { totalCount } } } releases(first:1) { totalCount } projects(first:1) { totalCount } } } } }"
+    "query":"query {
+      organization(login: \"${ORG_NAME}\") {
+        repositories(first:${REPO_PAGE_SIZE}${REPO_NEXT_PAGE}) {
+          totalDiskUsage
+          pageInfo {
+            hasPreviousPage
+            hasNextPage
+            hasPreviousPage
+            endCursor
+          }
+          nodes {
+            owner {
+              login
+            }
+            name
+            nameWithOwner
+            diskUsage
+            ${IS_EMPTY_FLAG}
+            pushedAt
+            updatedAt
+            isFork
+            collaborators(first:1) {
+              totalCount
+            }
+            branchProtectionRules(first:1) {
+              totalCount
+            }
+            pullRequests(first:${REPO_PAGE_SIZE}) {
+              totalCount
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+              nodes {
+                number
+                commits(first:1) {
+                  totalCount
+                }
+                timeline(first:1) {
+                  totalCount
+                }
+                comments(first:1) {
+                  totalCount
+                }
+                reviews(first:${REPO_PAGE_SIZE}) {
+                  totalCount
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+                  nodes {
+                    comments(first:1) {
+                      totalCount
+                    }
+                  }
+                }
+              }
+            }
+            milestones(first:1) {
+              totalCount
+            }
+            commitComments(first:1) {
+              totalCount
+            }
+            issues(first:${REPO_PAGE_SIZE}) {
+              totalCount
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+              nodes {
+                timeline(first:1) {
+                  totalCount
+                }
+                comments(first:1) {
+                  totalCount
+                }
+              }
+            }
+            releases(first:1) {
+              totalCount
+            }
+            projects(first:1) {
+              totalCount
+            }
+          }
+        }
+      }
+    }"
   }
 EOF
   }
@@ -1051,7 +1139,29 @@ GetNextIssues() {
   {
   cat <<EOF
     {
-  "query":"{  repository(owner:\"${OWNER}\" name:\"${REPO_NAME}\") { owner { login } name issues(first:${EXTRA_PAGE_SIZE}${ISSUE_NEXT_PAGE}) { totalCount pageInfo { hasNextPage endCursor } nodes { timeline(first: 1) { totalCount } comments(first: 1) { totalCount } } } }}"
+      "query":"{
+        repository(owner:\"${OWNER}\" name:\"${REPO_NAME}\") {
+          owner {
+            login
+          }
+          name
+          issues(first:${EXTRA_PAGE_SIZE}${ISSUE_NEXT_PAGE}) {
+            totalCount
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              timeline(first: 1) {
+                totalCount
+              }
+              comments(first: 1) {
+                totalCount
+              }
+            }
+          }
+        }
+      }"
     }
 EOF
   }
@@ -1185,7 +1295,45 @@ GetNextPullRequests() {
   {
   cat <<EOF
     {
-  "query":"{  repository(owner:\"${OWNER}\" name:\"${REPO_NAME}\") {  owner {  login  }  name   pullRequests(first:${EXTRA_PAGE_SIZE}${PR_NEXT_PAGE}) {  totalCount  pageInfo {    hasNextPage  endCursor  }  nodes { number  commits(first:1){  totalCount   }    timeline(first: 1) {  totalCount    }    comments(first: 1) {  totalCount    }    reviews(first: ${EXTRA_PAGE_SIZE}) {  totalCount  pageInfo {    hasNextPage  endCursor  }    nodes {  comments(first: 1) {    totalCount  }  }   }  }  }  }}"
+      "query":"{
+        repository(owner:\"${OWNER}\" name:\"${REPO_NAME}\") {
+          owner {
+            login
+          }
+          name
+          pullRequests(first:${EXTRA_PAGE_SIZE}${PR_NEXT_PAGE}) {
+            totalCount
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              number
+              commits(first:1) {
+                totalCount
+              }
+              timeline(first: 1) {
+                totalCount
+              }
+              comments(first: 1) {
+                totalCount
+              }
+              reviews(first: ${EXTRA_PAGE_SIZE}) {
+                totalCount
+                pageInfo {
+                  hasNextPage
+                  endCursor
+                }
+                nodes {
+                  comments(first: 1) {
+                    totalCount
+                  }
+                }
+              }
+            }
+          }
+        }
+      }"
     }
 EOF
   }
@@ -1293,7 +1441,38 @@ GetNextReviews() {
   {
   cat <<EOF
     {
-  "query":"{ repository(owner:\"${OWNER}\" name:\"${REPO_NAME}\") { owner { login } name pullRequest(number:${PR_NUMBER}) { number  commits(first:1){  totalCount   }    timeline(first: 1) {  totalCount    }    comments(first: 1) {  totalCount    }    reviews(first: ${EXTRA_PAGE_SIZE}${REVIEW_NEXT_PAGE}) { totalCount pageInfo { hasNextPage endCursor } nodes { comments(first: 1) {    totalCount } } } } }}"
+      "query":"{
+        repository(owner:\"${OWNER}\" name:\"${REPO_NAME}\") {
+          owner {
+            login
+          }
+          name
+          pullRequest(number:${PR_NUMBER}) {
+            number
+            commits(first:1) {
+              totalCount
+            }
+            timeline(first: 1) {
+              totalCount
+            }
+            comments(first: 1) {
+              totalCount
+            }
+            reviews(first: ${EXTRA_PAGE_SIZE}${REVIEW_NEXT_PAGE}) {
+              totalCount
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+              nodes {
+                comments(first: 1) {
+                  totalCount
+                }
+              }
+            }
+          }
+        }
+      }"
     }
 EOF
   }
@@ -1355,7 +1534,19 @@ GetTeams() {
   {
   cat <<EOF
     {
-  "query":"query {   organization(login:\"${OWNER}\") {    teams(first: ${REPO_PAGE_SIZE}${TEAM_NEXT_PAGE}) {  pageInfo{  hasNextPage  endCursor  } nodes { slug } } } }"
+      "query":"query {
+        organization(login:\"${OWNER}\") {
+          teams(first: ${REPO_PAGE_SIZE}${TEAM_NEXT_PAGE}) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              slug
+            }
+          }
+        }
+      }"
     }
 EOF
   }
