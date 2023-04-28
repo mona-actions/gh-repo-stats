@@ -494,8 +494,7 @@ GenerateFiles() {
       IS_EMPTY_HEADER="";
     fi
 
-    # File format headers: ORG_NAME,REPO_NAME,IS_EMPTY,PUSHED_AT,UPDATED_AT,IS_FORK,REPO_SIZE,RECORD_CT,COLLABORATOR_CT,PROTECTED_BRANCH_CT,PR_REVIEW_CT,MILESTONE_CT,ISSUE_CT,PR_CT,PR_REVIEW_COMMENT_CT,COMMIT_COMMENT_CT,ISSUE_COMMENT_CT,ISSUE_EVENT_CT,RELEASE_CT,PROJECT_CT,GHE_URL/ORG_NAME/REPO_NAME,MIGRATION_ISSUE
-    echo "Org_Name,Repo_Name,${IS_EMPTY_HEADER}Last_Push,Last_Update,isFork,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Full_URL,Migration_Issue" >> "${OUTPUT_FILE_NAME}" 2>&1
+    echo "Org_Name,Repo_Name,${IS_EMPTY_HEADER}Last_Push,Last_Update,isFork,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Branch_Count,Tag_Count,Discussion_Count,Has_Wiki,Full_URL,Migration_Issue" >> "${OUTPUT_FILE_NAME}" 2>&1
 
     #######################
     # Load the error code #
@@ -675,53 +674,76 @@ GetRepos() {
 
   QUERY="query(\$login: String!, \$pageSize: Int!, \$endCursor: String) {
     organization(login: \$login) {
-      repositories(first: \$pageSize, after: \$endCursor) {
+      repositories(first: \$pageSize, after: \$endCursor, orderBy: {field: NAME, direction: ASC}) {
         totalDiskUsage
         pageInfo {
-          hasPreviousPage
-          hasNextPage
-          hasPreviousPage
           endCursor
+          hasNextPage
         }
         nodes {
-          owner {
-            login
-          }
-          name
-          nameWithOwner
-          diskUsage
-          ${IS_EMPTY_FLAG}
-          pushedAt
-          updatedAt
-          isFork
-          collaborators {
+          branches: refs(refPrefix:\"refs/heads/\") {
             totalCount
           }
           branchProtectionRules {
             totalCount
           }
-          pullRequests(first: \$pageSize) {
+          commitComments {
+            totalCount
+          }
+          collaborators {
+            totalCount
+          }
+          diskUsage
+          discussions {
+            totalCount
+          }
+          hasWikiEnabled
+          ${IS_EMPTY_FLAG}
+          isFork
+          issues(first: \$pageSize) {
             totalCount
             pageInfo {
-              hasNextPage
               endCursor
+              hasNextPage
             }
             nodes {
-              number
-              commits {
-                totalCount
-              }
               timeline {
                 totalCount
               }
               comments {
                 totalCount
               }
+            }
+          }
+          milestones {
+            totalCount
+          }
+          name
+          owner {
+            login
+          }
+          projects {
+            totalCount
+          }
+          pullRequests(first: \$pageSize) {
+            totalCount
+            pageInfo {
+              endCursor
+              hasNextPage
+            }
+            nodes {
+              comments {
+                totalCount
+              }
+              commits {
+                totalCount
+              }
+              number
               reviews(first: \$pageSize) {
                 totalCount
                 pageInfo {
-                  hasNextPage
                   endCursor
+                  hasNextPage
                 }
                 nodes {
                   comments {
@@ -729,35 +751,19 @@ GetRepos() {
                   }
                 }
               }
-            }
-          }
-          milestones {
-            totalCount
-          }
-          commitComments {
-            totalCount
-          }
-          issues(first: \$pageSize) {
-            totalCount
-            pageInfo {
-              hasNextPage
-              endCursor
-            }
-            nodes {
               timeline {
                 totalCount
               }
-              comments {
-                totalCount
-              }
             }
           }
+          pushedAt
           releases {
             totalCount
           }
-          projects {
+          tags: refs(refPrefix: \"refs/tags/\") {
             totalCount
           }
+          updatedAt
         }
       }
     }
@@ -906,6 +912,7 @@ ParseRepoData() {
 
   PUSHED_AT=$(_jq '.pushedAt')
   UPDATED_AT=$(_jq '.updatedAt')
+  HAS_WIKI=$(_jq '.hasWikiEnabled')
   IS_FORK=$(_jq '.isFork')
 
   MILESTONE_CT=$(_jq '.milestones.totalCount')
@@ -915,6 +922,9 @@ ParseRepoData() {
   RELEASE_CT=$(_jq '.releases.totalCount')
   COMMIT_COMMENT_CT=$(_jq '.commitComments.totalCount')
   PROJECT_CT=$(_jq '.projects.totalCount')
+  BRANCH_CT=$(_jq '.branches.totalCount')
+  TAG_CT=$(_jq '.tags.totalCount')
+  DISCUSSION_CT=$(_jq '.discussions.totalCount')
 
   if [[ "${VERSION}" == "cloud" ]]; then
     PROTECTED_BRANCH_CT=$(_jq '.branchProtectionRules.totalCount')
@@ -958,7 +968,7 @@ ParseRepoData() {
   ########################
   # Write it to the file #
   ########################
-  echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY}${PUSHED_AT},${UPDATED_AT},${IS_FORK},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${GHE_URL}/${ORG_NAME}/${REPO_NAME},${MIGRATION_ISSUE}" >> "${OUTPUT_FILE_NAME}"
+  echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY}${PUSHED_AT},${UPDATED_AT},${IS_FORK},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${BRANCH_CT},${TAG_CT},${DISCUSSION_CT},${HAS_WIKI},${GHE_URL}/${ORG_NAME}/${REPO_NAME},${MIGRATION_ISSUE}" >> "${OUTPUT_FILE_NAME}"
 
   #######################
   # Load the error code #
