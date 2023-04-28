@@ -249,11 +249,12 @@ Header() {
   ################################################################
   if [[ ${GITHUB_TOKEN_TYPE} == "user" ]]; then
     USER_DATA=$(gh api /user)
+    ERROR_CODE=$?
   
     #######################
     # Validate the return #
     #######################
-    if [ $? -ne 0 ]; then
+    if [ "${ERROR_CODE}" -ne 0 ]; then
       echo "Error getting user"
       echo "${USER_DATA}"
     else
@@ -275,11 +276,12 @@ Header() {
   #####################
   if [[ "$(isCloud)" -eq 0  ]]; then
     META_DATA=$(gh api /meta)
+    ERROR_CODE=$?
 
     #######################
     # Validate the return #
     #######################
-    if [ $? -ne 0 ]; then
+    if [ "${ERROR_CODE}" -ne 0 ]; then
       echo "Error getting GHE version"
       echo "${META_DATA}"
     else
@@ -528,8 +530,9 @@ CheckAdminRights() {
   # Get membership #
   ##################
   MEMBERSHIP_DATA=$(gh api /orgs/${ORG_NAME}/memberships/${USER_LOGIN})
+  ERROR_CODE=$?
 
-  if [ $? -ne 0 ]; then
+  if [ "${ERROR_CODE}" -ne 0 ]; then
     echo "Error getting Membership for Org: ${ORG_NAME}"
     echo "${MEMBERSHIP_DATA}"
     exit 1
@@ -775,8 +778,10 @@ GetRepos() {
   else
     DATA_BLOCK=$(gh api graphql -f query="$QUERY" -F login="$ORG_NAME" -F pageSize="$REPO_PAGE_SIZE")
   fi
+
+  ERROR_CODE=$?
   
-  if [ $? -ne 0 ]; then
+  if [ "${ERROR_CODE}" -ne 0 ]; then
     # We are using to big of a page size, so we need to do smaller pagination
     echo "Error getting Repos for Org: ${ORG_NAME}"
     echo "--repo-page-size might need to be set to a lower value"
@@ -978,7 +983,7 @@ ParseRepoData() {
   ##############################
   # Check the shell for errors #
   ##############################
-  if [ $ERROR_CODE -ne 0 ]; then
+  if [ "${ERROR_CODE}" -ne 0 ]; then
     echo "ERROR! Failed to write output to file:[${OUTPUT_FILE_NAME}]"
     exit 1
   fi
@@ -1102,7 +1107,9 @@ GetNextIssues() {
     ISSUE_DATA=$(gh api graphql -f query="$QUERY" -F owner="$OWNER" -F name="$REPO_NAME" -F pageSize="$EXTRA_PAGE_SIZE")
   fi
 
-  if [ $? -ne 0 ]; then
+  ERROR_CODE=$?
+
+  if [ "${ERROR_CODE}" -ne 0 ]; then
     echo "Error getting more Issues for Repo: ${OWNER}/${REPO_NAME}"
     echo "--extra-page-size might need to be set to a lower value"
   else
@@ -1261,7 +1268,9 @@ GetNextPullRequests() {
     PR_DATA=$(gh api graphql -f query="$QUERY" -F owner="$OWNER" -F name="$REPO_NAME" -F pageSize="$EXTRA_PAGE_SIZE")
   fi
 
-  if [ $? -ne 0 ]; then
+  ERROR_CODE=$?
+
+  if [ "${ERROR_CODE}" -ne 0 ]; then
     echo "Error getting more Pull Requests for Repo: ${OWNER}/${REPO_NAME}"
     echo "${PR_DATA}"
   else
@@ -1382,10 +1391,12 @@ GetNextReviews() {
     REVIEW_DATA=$(gh api graphql -f query="$QUERY" -F owner="$OWNER" -F name="$REPO_NAME" -F number="$PR_NUMBER" -F pageSize="$EXTRA_PAGE_SIZE")
   fi
 
+  ERROR_CODE=$?
+
   ######################
   # Look for PR errors #
   ######################
-  if [ $? -ne 0 ]; then
+  if [ "${ERROR_CODE}" -ne 0 ]; then
     echo "Error getting more PR Reviews for Repo: ${OWNER}/${REPO_NAME} and PR: ${PR_NUMBER}"
     echo "${REVIEW_DATA}"
   else
@@ -1437,7 +1448,9 @@ GetTeams() {
     TEAM_DATA=$(gh api graphql -f query="$QUERY" -F owner="$OWNER" -F pageSize="$REPO_PAGE_SIZE")
   fi
 
-  if [ $? -ne 0 ]; then
+  ERROR_CODE=$?
+
+  if [ "${ERROR_CODE}" -ne 0 ]; then
     echo "Error getting Teams for Org: ${OWNER}"
     echo "${TEAM_DATA}"
   else
