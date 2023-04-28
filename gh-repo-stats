@@ -101,6 +101,7 @@ while (( "$#" )); do
       ;;
     -d|--debug)
       DEBUG=true
+      export GH_DEBUG=api
       shift
       ;;
     -t|--token)
@@ -236,37 +237,23 @@ Header() {
   fi
 
   if [[ -z "${REPO_PAGE_SIZE}" ]]; then
-    REPO_PAGE_SIZE=20
+    REPO_PAGE_SIZE=10
   fi
 
   if [[ -z "${EXTRA_PAGE_SIZE}" ]]; then
-    EXTRA_PAGE_SIZE=100
+    EXTRA_PAGE_SIZE=50
   fi
 
   ################################################################
   # Validate we can hit the endpoint by getting the current user #
   ################################################################
   if [[ ${GITHUB_TOKEN_TYPE} == "user" ]]; then
-    Debug "curl -kw '%{http_code}' -s -X GET \
-    --url ${GITHUB_URL}/user \
-    -H \"authorization: Bearer ************\""
-  
-    USER_RESPONSE=$(curl -kw '%{http_code}' -s -X GET \
-      --url "${GITHUB_URL}"/user \
-      -H "authorization: Bearer ${GITHUB_TOKEN}")
-  
-    Debug "USER_RESPONSE: "
-    Debug "${USER_RESPONSE}"
-  
-    USER_RESPONSE_CODE="${USER_RESPONSE:(-3)}"
-    USER_DATA="${USER_RESPONSE::${#USER_RESPONSE}-4}"
-  
-    DebugJQ "${USER_DATA}"
+    USER_DATA=$(gh api /user)
   
     #######################
     # Validate the return #
     #######################
-    if [[ "$USER_RESPONSE_CODE" != "200" ]]; then
+    if [ $? -ne 0 ]; then
       echo "Error getting user"
       echo "${USER_DATA}"
     else
@@ -287,23 +274,12 @@ Header() {
   # Check GHE version #
   #####################
   if [[ "$(isCloud)" -eq 0  ]]; then
-
-    META_RESPONSE=$(curl -kw '%{http_code}' -s --request GET \
-    --url "${GITHUB_URL}"/meta \
-    --header "authorization: Bearer ${GITHUB_TOKEN}")
-
-    Debug "META_RESPONSE: "
-    Debug "${META_RESPONSE}"
-
-    META_RESPONSE_CODE="${META_RESPONSE:(-3)}"
-    META_DATA="${META_RESPONSE::${#META_RESPONSE}-4}"
-
-    DebugJQ "${META_DATA}"
+    META_DATA=$(gh api /meta)
 
     #######################
     # Validate the return #
     #######################
-    if [[ "$META_RESPONSE_CODE" != "200" ]]; then
+    if [ $? -ne 0 ]; then
       echo "Error getting GHE version"
       echo "${META_DATA}"
     else
@@ -395,14 +371,9 @@ GetPersonalAccessToken() {
     ########################################
     echo ""
     echo "------------------------------------------------------"
-    echo "Please create a GitHub Personal Access Token used to gather"
-    echo "information from your Organization, with a scope of 'repo',"
-    echo "followed by [ENTER]:"
-    echo "(note: your input will NOT be displayed)"
-    ########################
-    # Read input from user #
-    ########################
-    read -rs GITHUB_TOKEN
+    echo "Falling back to GitHub token via 'gh auth token'"
+
+    GITHUB_TOKEN="$(gh auth token)"
   fi
   # Clean any whitespace that may be enetered
   GITHUB_TOKEN_NO_WHITESPACE="$(echo -e "${GITHUB_TOKEN}" | tr -d '[:space:]')"
@@ -554,29 +525,16 @@ CheckAdminRights() {
   ################
   ORG_NAME="$1"
 
-  # Debug info
-  Debug "echo curl -kw '%{http_code}' -s -X GET \
-    --url ${GITHUB_URL}/orgs/${ORG_NAME}/memberships/${USER_LOGIN} \
-    -H \"authorization: Bearer ${GITHUB_TOKEN}\""
-
   ##################
   # Get membership #
   ##################
-  MEMBERSHIP_RESPONSE=$(curl -kw '%{http_code}' -s -X GET \
-  --url "${GITHUB_URL}/orgs/${ORG_NAME}/memberships/${USER_LOGIN}" \
-  -H "authorization: Bearer ${GITHUB_TOKEN}")
+  MEMBERSHIP_DATA=$(gh api /orgs/${ORG_NAME}/memberships/${USER_LOGIN})
 
-  MEMBERSHIP_RESPONSE_CODE="${MEMBERSHIP_RESPONSE:(-3)}"
-  MEMBERSHIP_DATA="${MEMBERSHIP_RESPONSE::${#MEMBERSHIP_RESPONSE}-4}"
-
-  if [[ "$MEMBERSHIP_RESPONSE_CODE" != "200" ]]; then
+  if [ $? -ne 0 ]; then
     echo "Error getting Membership for Org: ${ORG_NAME}"
     echo "${MEMBERSHIP_DATA}"
     exit 1
   else
-    Debug "Org Membership Response:"
-    DebugJQ "${MEMBERSHIP_DATA}"
-
     MEMBERSHIP_STATUS=$(echo "${MEMBERSHIP_DATA}" | jq -r '.role')
     MEMBERSHIP_STATUS="admin"
     if [[ ${MEMBERSHIP_STATUS} = "admin" ]]; then
@@ -655,21 +613,15 @@ CheckAPILimit() {
   ##############################################################
   # Check what is remaining, and if 0, we need to sleep it off #
   ##############################################################
-  API_REMAINING_REQUEST=$(curl -s -X GET \
-    --url "${GITHUB_URL}/rate_limit" \
-    -H "Authorization: Bearer ${GITHUB_TOKEN}")
-
-  Debug "DEBUG --- API REMAINING DATA BLOCK:"
-  DebugJQ "${API_REMAINING_REQUEST}"
-
-  API_REMAINING_MESSAGE=$(echo "${API_REMAINING_REQUEST}" \
-    | jq -r '.message' 2>&1)
+  API_REMAINING_REQUEST=$(gh api /rate_limit)
+  API_REMAINING_MESSAGE=$(echo "${API_REMAINING_REQUEST}" | jq -r '.message' 2>&1)
 
   if [[ "${API_REMAINING_MESSAGE}" != "Rate limiting is not enabled." ]]; then
-    API_REMAINING=$(echo "${API_REMAINING_REQUEST}" \
-      | jq -r '.resources.graphql.remaining' 2>&1);
+    GRAPHQL_REMAINING=$(echo "${API_REMAINING_REQUEST}" | jq -r '.resources.graphql.remaining' 2>&1);
+    CORE_REMAINING=$(echo "${API_REMAINING_REQUEST}" | jq -r '.resources.core.remaining' 2>&1);
   else
-    API_REMAINING=9999999999
+    GRAPHQL_REMAINING=9999999999
+    CORE_REMAINING=9999999999
   fi
 
   #######################
@@ -682,14 +634,14 @@ CheckAPILimit() {
   ##############################
   if [ "${ERROR_CODE}" -ne 0 ]; then
     echo  "ERROR! Failed to get valid response back from GitHub API!"
-    echo "ERROR:[${API_REMAINING}]"
+    echo "ERROR:[${GRAPHQL_REMAINING}]"
     exit 1
   fi
 
   ##########################################
   # Check to see if we have API calls left #
   ##########################################
-  if [[ "${API_REMAINING}" -eq 0 ]]; then
+  if [[ "${GRAPHQL_REMAINING}" -eq 0 ]]; then
     # Increment the sleep counter
     ((SLEEP_COUNTER++))
     # Warn the user
@@ -706,146 +658,123 @@ CheckAPILimit() {
       # Get some sleep...
       sleep "${SLEEP}"
     fi
-  elif [[ "${API_REMAINING}" == 9999999999 ]]; then
+  elif [[ "${GRAPHQL_REMAINING}" == 9999999999 ]]; then
     echo "API rate limiting is not enabled."
   else
-    echo "[${API_REMAINING}] API attempts remaining..."
+    printf "Rate limits remaining: %'d GraphQL points  %'d REST calls\n" "${GRAPHQL_REMAINING}" "${CORE_REMAINING}"
   fi
 }
 ################################################################################
 #### Function GetRepos #########################################################
 GetRepos() {
-  ##############################
-  # Grab repos from the system #
-  ##############################
-  function generate_graphql_data()
-  {
-    # When the version is 2.21, we need to remove the isEmpty flag
-    IS_EMPTY_FLAG="isEmpty";
-    if [[ "$(isCompatibleGHESVersion)" -eq "2" ]]; then
-      IS_EMPTY_FLAG="";
-    fi
-    cat <<EOF
-  {
-    "query":"query {
-      organization(login: \"${ORG_NAME}\") {
-        repositories(first:${REPO_PAGE_SIZE}${REPO_NEXT_PAGE}) {
-          totalDiskUsage
-          pageInfo {
-            hasPreviousPage
-            hasNextPage
-            hasPreviousPage
-            endCursor
+  # When the version is 2.21, we need to remove the isEmpty flag
+  IS_EMPTY_FLAG="isEmpty";
+  if [[ "$(isCompatibleGHESVersion)" -eq "2" ]]; then
+    IS_EMPTY_FLAG="";
+  fi
+
+  QUERY="query(\$login: String!, \$pageSize: Int!, \$endCursor: String) {
+    organization(login: \$login) {
+      repositories(first: \$pageSize, after: \$endCursor) {
+        totalDiskUsage
+        pageInfo {
+          hasPreviousPage
+          hasNextPage
+          hasPreviousPage
+          endCursor
+        }
+        nodes {
+          owner {
+            login
           }
-          nodes {
-            owner {
-              login
+          name
+          nameWithOwner
+          diskUsage
+          ${IS_EMPTY_FLAG}
+          pushedAt
+          updatedAt
+          isFork
+          collaborators(first:1) {
+            totalCount
+          }
+          branchProtectionRules(first:1) {
+            totalCount
+          }
+          pullRequests(first: \$pageSize) {
+            totalCount
+            pageInfo {
+              hasNextPage
+              endCursor
             }
-            name
-            nameWithOwner
-            diskUsage
-            ${IS_EMPTY_FLAG}
-            pushedAt
-            updatedAt
-            isFork
-            collaborators(first:1) {
-              totalCount
-            }
-            branchProtectionRules(first:1) {
-              totalCount
-            }
-            pullRequests(first:${REPO_PAGE_SIZE}) {
-              totalCount
-              pageInfo {
-                hasNextPage
-                endCursor
+            nodes {
+              number
+              commits(first:1) {
+                totalCount
               }
-              nodes {
-                number
-                commits(first:1) {
-                  totalCount
+              timeline(first:1) {
+                totalCount
+              }
+              comments(first:1) {
+                totalCount
+              }
+              reviews(first: \$pageSize) {
+                totalCount
+                pageInfo {
+                  hasNextPage
+                  endCursor
                 }
-                timeline(first:1) {
-                  totalCount
-                }
-                comments(first:1) {
-                  totalCount
-                }
-                reviews(first:${REPO_PAGE_SIZE}) {
-                  totalCount
-                  pageInfo {
-                    hasNextPage
-                    endCursor
-                  }
-                  nodes {
-                    comments(first:1) {
-                      totalCount
-                    }
+                nodes {
+                  comments(first:1) {
+                    totalCount
                   }
                 }
               }
             }
-            milestones(first:1) {
-              totalCount
+          }
+          milestones(first:1) {
+            totalCount
+          }
+          commitComments(first:1) {
+            totalCount
+          }
+          issues(first: \$pageSize) {
+            totalCount
+            pageInfo {
+              hasNextPage
+              endCursor
             }
-            commitComments(first:1) {
-              totalCount
-            }
-            issues(first:${REPO_PAGE_SIZE}) {
-              totalCount
-              pageInfo {
-                hasNextPage
-                endCursor
+            nodes {
+              timeline(first:1) {
+                totalCount
               }
-              nodes {
-                timeline(first:1) {
-                  totalCount
-                }
-                comments(first:1) {
-                  totalCount
-                }
+              comments(first:1) {
+                totalCount
               }
             }
-            releases(first:1) {
-              totalCount
-            }
-            projects(first:1) {
-              totalCount
-            }
+          }
+          releases(first:1) {
+            totalCount
+          }
+          projects(first:1) {
+            totalCount
           }
         }
       }
-    }"
-  }
-EOF
-  }
+    }
+  }"
 
   Debug "Getting repos"
-  Debug "curl -kw '%{http_code}' -s -X POST -H \"authorization: Bearer ${GITHUB_TOKEN}\" -H \"content-type: application/json\" \
-  --data \"$(generate_graphql_data)\" \
-  \"${GRAPHQL_URL}\""
-
-  #############
-  # Get repos #
-  #############
-  REPO_RESPONSE=$(curl -kw '%{http_code}' -s -X POST -H "authorization: Bearer ${GITHUB_TOKEN}" -H "content-type: application/json" \
-  --data "$(generate_graphql_data)" \
-  "${GRAPHQL_URL}")
-
-  REPO_RESPONSE_CODE="${REPO_RESPONSE:(-3)}"
-  DATA_BLOCK="${REPO_RESPONSE::${#REPO_RESPONSE}-4}"
-  
-  if [[ "$REPO_RESPONSE_CODE" == "502" ]]; then
-    # We are using to big of a page size, so we need to do smaller pagination
-    echo "Error 502: We are using to big of a page size, so we need to do smaller pagination"
-    echo "Please set --repo-page-size to a lower value"
-  elif [[ "$REPO_RESPONSE_CODE" != "200" ]]; then
-    echo "Error getting Repos for Org: ${ORG_NAME}"
-    echo "${DATA_BLOCK}"
+  if [[ -n "$REPO_NEXT_PAGE" ]]; then
+    DATA_BLOCK=$(gh api graphql -f query="$QUERY" -F login="$ORG_NAME" -F pageSize="$REPO_PAGE_SIZE" -F endCursor="$REPO_NEXT_PAGE")
   else
-    Debug "DEBUG --- REPO DATA BLOCK:"
-    DebugJQ "${DATA_BLOCK}"
-
+    DATA_BLOCK=$(gh api graphql -f query="$QUERY" -F login="$ORG_NAME" -F pageSize="$REPO_PAGE_SIZE")
+  fi
+  
+  if [ $? -ne 0 ]; then
+    # We are using to big of a page size, so we need to do smaller pagination
+    echo "Error getting Repos for Org: ${ORG_NAME}"
+    echo "--repo-page-size might need to be set to a lower value"
+  else
     ERROR_MESSAGE=$(echo "${DATA_BLOCK}" | jq -r '.errors[]?')
 
     if [[ -n "${ERROR_MESSAGE}" ]]; then
@@ -863,7 +792,7 @@ EOF
     ##############################
     # Get the Current End Cursor #
     ##############################
-    REPO_NEXT_PAGE=', after: \"'$(echo "${DATA_BLOCK}" | jq -r '.data.organization.repositories.pageInfo.endCursor')'\"'
+    REPO_NEXT_PAGE=$(echo "${DATA_BLOCK}" | jq -r '.data.organization.repositories.pageInfo.endCursor')
 
     #############################################
     # Parse all the repo data out of data block #
@@ -1089,11 +1018,11 @@ AnalyzeIssues() {
   ##############################
   # Get the Current End Cursor #
   ##############################
-  ISSUE_NEXT_PAGE=', after: \"'$(_pr_issue_jq  '.issues.pageInfo.endCursor')'\"'
+  ISSUE_NEXT_PAGE=$(_pr_issue_jq  '.issues.pageInfo.endCursor')
 
   for ISSUE in $(echo -n "${ISSUES}" | jq -r '.[] | @base64'); do
     _issue_jq() {
- echo -n "${ISSUE}" | base64 --decode | jq -r "${1}"
+      echo -n "${ISSUE}" | base64 --decode | jq -r "${1}"
     }
 
     EVENT_CT=$(_issue_jq '.timeline.totalCount')
@@ -1132,58 +1061,41 @@ AnalyzeIssues() {
 ################################################################################
 #### Function GetNextIssues ####################################################
 GetNextIssues() {
-  #############################
-  # Generate the graphql data #
-  #############################
-  function generate_graphql_data()
-  {
-  cat <<EOF
-    {
-      "query":"{
-        repository(owner:\"${OWNER}\" name:\"${REPO_NAME}\") {
-          owner {
-            login
-          }
-          name
-          issues(first:${EXTRA_PAGE_SIZE}${ISSUE_NEXT_PAGE}) {
+
+  QUERY="query(\$owner: String!, \$name: String!, \$pageSize: Int!, \$endCursor: String) {
+    repository(owner: \$owner, name: \$name) {
+      owner {
+        login
+      }
+      name
+      issues(first: \$pageSize, after: \$endCursor) {
+        totalCount
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          timeline(first: 1) {
             totalCount
-            pageInfo {
-              hasNextPage
-              endCursor
-            }
-            nodes {
-              timeline(first: 1) {
-                totalCount
-              }
-              comments(first: 1) {
-                totalCount
-              }
-            }
+          }
+          comments(first: 1) {
+            totalCount
           }
         }
-      }"
+      }
     }
-EOF
-  }
+  }"
 
-  ISSUE_RESPONSE=$(curl -kw '%{http_code}' -s -X POST -H "authorization: Bearer ${GITHUB_TOKEN}" -H "content-type: application/json" \
-  --data "$(generate_graphql_data)" \
-  "${GRAPHQL_URL}")
-
-  ISSUE_RESPONSE_CODE="${ISSUE_RESPONSE:(-3)}"
-  ISSUE_DATA="${ISSUE_RESPONSE::${#ISSUE_RESPONSE}-4}"
-
-  if [[ "${ISSUE_RESPONSE_CODE}" == "502" ]]; then
-    # We need to use a smaller page size
-    echo "Error 502: We are using to big of a page size, so we need to do smaller pagination"
-    echo "Please set --extra-page-size to a lower value"
-  elif [[ "${ISSUE_RESPONSE_CODE}" != "200" ]]; then
-    echo "Error getting more Issues for Repo: ${OWNER}/${REPO_NAME}"
-    echo "${ISSUE_DATA}"
+  if [[ -n "$ISSUE_NEXT_PAGE" ]]; then
+    ISSUE_DATA=$(gh api graphql -f query="$QUERY" -F owner="$OWNER" -F name="$REPO_NAME" -F pageSize="$EXTRA_PAGE_SIZE" -F endCursor="$ISSUE_NEXT_PAGE")
   else
-    Debug "ISSUE DATA BLOCK:"
-    DebugJQ "${ISSUE_DATA}"
+    ISSUE_DATA=$(gh api graphql -f query="$QUERY" -F owner="$OWNER" -F name="$REPO_NAME" -F pageSize="$EXTRA_PAGE_SIZE")
+  fi
 
+  if [ $? -ne 0 ]; then
+    echo "Error getting more Issues for Repo: ${OWNER}/${REPO_NAME}"
+    echo "--extra-page-size might need to be set to a lower value"
+  else
     ERROR_MESSAGE=$(echo "${ISSUE_DATA}" | jq -r '.errors[]?')
 
     if [[ -n "${ERROR_MESSAGE}" ]]; then
@@ -1220,7 +1132,7 @@ AnalyzePullRequests() {
   ##############################
   # Get the Current End Cursor #
   ##############################
-  PR_NEXT_PAGE=', after: \"'$(_pr_repo_jq  '.pullRequests.pageInfo.endCursor')'\"'
+  PR_NEXT_PAGE=$(_pr_repo_jq  '.pullRequests.pageInfo.endCursor')
 
   for PR in $(echo -n "${PRS}" | jq -r '.[] | @base64'); do
     _pr_jq() {
@@ -1291,73 +1203,58 @@ AnalyzePullRequests() {
 ################################################################################
 #### Function GetNextPullRequests ##############################################
 GetNextPullRequests() {
-  function generate_graphql_data()
-  {
-  cat <<EOF
-    {
-      "query":"{
-        repository(owner:\"${OWNER}\" name:\"${REPO_NAME}\") {
-          owner {
-            login
+
+  QUERY="query(\$owner: String!, \$name: String!, \$pageSize: Int!, \$endCursor: String) {
+    repository(owner: \$owner, name: \$name) {
+      owner {
+        login
+      }
+      name
+      pullRequests(first: \$pageSize, after: \$endCursor) {
+        totalCount
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          number
+          commits(first:1) {
+            totalCount
           }
-          name
-          pullRequests(first:${EXTRA_PAGE_SIZE}${PR_NEXT_PAGE}) {
+          timeline(first: 1) {
+            totalCount
+          }
+          comments(first: 1) {
+            totalCount
+          }
+          reviews(first: \$pageSize) {
             totalCount
             pageInfo {
               hasNextPage
               endCursor
             }
             nodes {
-              number
-              commits(first:1) {
-                totalCount
-              }
-              timeline(first: 1) {
-                totalCount
-              }
               comments(first: 1) {
                 totalCount
-              }
-              reviews(first: ${EXTRA_PAGE_SIZE}) {
-                totalCount
-                pageInfo {
-                  hasNextPage
-                  endCursor
-                }
-                nodes {
-                  comments(first: 1) {
-                    totalCount
-                  }
-                }
               }
             }
           }
         }
-      }"
+      }
     }
-EOF
-  }
+  }"
 
   Debug "Getting pull requests"
-  Debug "curl -kw '%{http_code}' -s -X POST -H \"authorization: Bearer ${GITHUB_TOKEN}\" -H \"content-type: application/json\" \
-    --data \"$(generate_graphql_data)\" \
-    \"${GRAPHQL_URL}\""
+  if [[ -n "$PR_NEXT_PAGE" ]]; then
+    PR_DATA=$(gh api graphql -f query="$QUERY" -F owner="$OWNER" -F name="$REPO_NAME" -F pageSize="$EXTRA_PAGE_SIZE" -F endCursor="$PR_NEXT_PAGE")
+  else
+    PR_DATA=$(gh api graphql -f query="$QUERY" -F owner="$OWNER" -F name="$REPO_NAME" -F pageSize="$EXTRA_PAGE_SIZE")
+  fi
 
-  PR_RESPONSE=$(curl -kw '%{http_code}' -s -X POST -H "authorization: Bearer ${GITHUB_TOKEN}" -H "content-type: application/json" \
-  --data "$(generate_graphql_data)" \
-  "${GRAPHQL_URL}")
-
-  PR_RESPONSE_CODE="${PR_RESPONSE:(-3)}"
-  PR_DATA="${PR_RESPONSE::${#PR_RESPONSE}-4}"
-
-  if [[ "$PR_RESPONSE_CODE" != "200" ]]; then
+  if [ $? -ne 0 ]; then
     echo "Error getting more Pull Requests for Repo: ${OWNER}/${REPO_NAME}"
     echo "${PR_DATA}"
   else
-
-    Debug "PULL_REQUEST DATA BLOCK:"
-    DebugJQ "${PR_DATA}"
-
     ERROR_MESSAGE=$(echo "${PR_DATA}" | jq -r '.errors[]?')
 
     if [[ -n "${ERROR_MESSAGE}" ]]; then
@@ -1389,7 +1286,7 @@ AnalyzeReviews() {
   ##############################
   # Get the Current End Cursor #
   ##############################
-  REVIEW_NEXT_PAGE=', after: \"'$(_review_jq  '.reviews.pageInfo.endCursor')'\"'
+  REVIEW_NEXT_PAGE=$(_review_jq  '.reviews.pageInfo.endCursor')
   PR_NUMBER=$(_review_jq '.number')
 
   Debug "Analyzing Pull Request Reviews for: ${REPO_NAME} PR: ${PR_NUMBER}"
@@ -1434,75 +1331,54 @@ AnalyzeReviews() {
 ################################################################################
 #### Function GetNextReviews ###################################################
 GetNextReviews() {
-  #########################
-  # Generate graphql data #
-  #########################
-  function generate_graphql_data()
-  {
-  cat <<EOF
-    {
-      "query":"{
-        repository(owner:\"${OWNER}\" name:\"${REPO_NAME}\") {
-          owner {
-            login
+
+  QUERY="query(\$owner: String!, \$name: String!, \$number: Int!, \$pageSize: Int!, \$endCursor: String) {
+    repository(owner: \$owner, name: \$name) {
+      owner {
+        login
+      }
+      name
+      pullRequest(number: \$number) {
+        number
+        commits(first:1) {
+          totalCount
+        }
+        timeline(first: 1) {
+          totalCount
+        }
+        comments(first: 1) {
+          totalCount
+        }
+        reviews(first: \$pageSize, endCursor: \$endCursor) {
+          totalCount
+          pageInfo {
+            hasNextPage
+            endCursor
           }
-          name
-          pullRequest(number:${PR_NUMBER}) {
-            number
-            commits(first:1) {
-              totalCount
-            }
-            timeline(first: 1) {
-              totalCount
-            }
+          nodes {
             comments(first: 1) {
               totalCount
             }
-            reviews(first: ${EXTRA_PAGE_SIZE}${REVIEW_NEXT_PAGE}) {
-              totalCount
-              pageInfo {
-                hasNextPage
-                endCursor
-              }
-              nodes {
-                comments(first: 1) {
-                  totalCount
-                }
-              }
-            }
           }
         }
-      }"
+      }
     }
-EOF
-  }
+  }"
 
-  ##################
-  # Get PR Reviews #
-  ##################
   Debug "Getting pull request reviews"
-  Debug "curl -kw '%{http_code}' -s -X POST -H \"authorization: Bearer ${GITHUB_TOKEN}\" -H \"content-type: application/json\" \
-  --data \"$(generate_graphql_data)\" \
-  \"${GRAPHQL_URL}\""
-
-  REVIEW_RESPONSE=$(curl -kw '%{http_code}' -s -X POST -H "authorization: Bearer ${GITHUB_TOKEN}" -H "content-type: application/json" \
-  --data "$(generate_graphql_data)" \
-  "${GRAPHQL_URL}")
-
-  REVIEW_RESPONSE_CODE="${REVIEW_RESPONSE:(-3)}"
-  REVIEW_DATA="${REVIEW_RESPONSE::${#REVIEW_RESPONSE}-4}"
+  if [[ -n "$REVIEW_NEXT_PAGE" ]]; then
+    REVIEW_DATA=$(gh api graphql -f query="$QUERY" -F owner="$OWNER" -F name="$REPO_NAME" -F number="$PR_NUMBER" -F pageSize="$EXTRA_PAGE_SIZE" -F endCursor="$REVIEW_NEXT_PAGE")
+  else
+    REVIEW_DATA=$(gh api graphql -f query="$QUERY" -F owner="$OWNER" -F name="$REPO_NAME" -F number="$PR_NUMBER" -F pageSize="$EXTRA_PAGE_SIZE")
+  fi
 
   ######################
   # Look for PR errors #
   ######################
-  if [[ "$REVIEW_RESPONSE_CODE" != "200" ]]; then
+  if [ $? -ne 0 ]; then
     echo "Error getting more PR Reviews for Repo: ${OWNER}/${REPO_NAME} and PR: ${PR_NUMBER}"
     echo "${REVIEW_DATA}"
   else
-
-    Debug "REVIEW DATA BLOCK:"
-    DebugJQ "${REVIEW_DATA}"
-
     ##################
     # Get any errors #
     ##################
@@ -1530,45 +1406,31 @@ EOF
 ################################################################################
 #### Function GetTeams #########################################################
 GetTeams() {
-  function generate_graphql_data()
-  {
-  cat <<EOF
-    {
-      "query":"query {
-        organization(login:\"${OWNER}\") {
-          teams(first: ${REPO_PAGE_SIZE}${TEAM_NEXT_PAGE}) {
-            pageInfo {
-              hasNextPage
-              endCursor
-            }
-            nodes {
-              slug
-            }
-          }
+
+  QUERY="query(\$owner: String!, \$pageSize: Int!, \$endCursor: String) {
+    organization(login: \$owner) {
+      teams(first: \$pageSize, endCursor: \$endCursor) {
+        pageInfo {
+          hasNextPage
+          endCursor
         }
-      }"
+        nodes {
+          slug
+        }
+      }
     }
-EOF
-  }
+  }"
 
-  Debug "curl -kw '%{http_code}' -s -X POST -H \"authorization: Bearer ${GITHUB_TOKEN}\" -H \"content-type: application/json\" \
-  --data \"$(generate_graphql_data)\" \
-  \"${GRAPHQL_URL}\""
+  if [[ -n "$TEAM_NEXT_PAGE" ]]; then
+    TEAM_DATA=$(gh api graphql -f query="$QUERY" -F owner="$OWNER" -F pageSize="$REPO_PAGE_SIZE" -F endCursor="$TEAM_NEXT_PAGE")
+  else
+    TEAM_DATA=$(gh api graphql -f query="$QUERY" -F owner="$OWNER" -F pageSize="$REPO_PAGE_SIZE")
+  fi
 
-  TEAM_RESPONSE=$(curl -kw '%{http_code}' -s -X POST -H "authorization: Bearer ${GITHUB_TOKEN}" -H "content-type: application/json" \
-  --data "$(generate_graphql_data)" \
-  "${GRAPHQL_URL}")
-
-  TEAM_RESPONSE_CODE="${TEAM_RESPONSE:(-3)}"
-  TEAM_DATA="${TEAM_RESPONSE::${#TEAM_RESPONSE}-4}"
-
-  if [[ "$TEAM_RESPONSE_CODE" != "200" ]]; then
+  if [ $? -ne 0 ]; then
     echo "Error getting Teams for Org: ${OWNER}"
     echo "${TEAM_DATA}"
   else
-    Debug "TEAM DATA BLOCK:"
-    DebugJQ "${TEAM_DATA}"
-
     ERROR_MESSAGE=$(echo "$TEAM_DATA" | jq -r '.errors[]?')
 
     if [[ -n "${ERROR_MESSAGE}" ]]; then
@@ -1587,7 +1449,7 @@ EOF
     ##############################
     # Get the Current End Cursor #
     ##############################
-    TEAM_NEXT_PAGE=', after: \"'$(echo "${TEAM_DATA}" | jq -r '.data.organization.teams.pageInfo.endCursor')'\"'
+    TEAM_NEXT_PAGE=$(echo "${TEAM_DATA}" | jq -r '.data.organization.teams.pageInfo.endCursor')
 
     for TEAM in $(echo -n "${TEAMS}" | jq -r '.[] | @base64'); do
       _team_jq() {
