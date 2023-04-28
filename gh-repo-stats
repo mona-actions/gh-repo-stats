@@ -694,10 +694,10 @@ GetRepos() {
           pushedAt
           updatedAt
           isFork
-          collaborators(first:1) {
+          collaborators {
             totalCount
           }
-          branchProtectionRules(first:1) {
+          branchProtectionRules {
             totalCount
           }
           pullRequests(first: \$pageSize) {
@@ -708,13 +708,13 @@ GetRepos() {
             }
             nodes {
               number
-              commits(first:1) {
+              commits {
                 totalCount
               }
-              timeline(first:1) {
+              timeline {
                 totalCount
               }
-              comments(first:1) {
+              comments {
                 totalCount
               }
               reviews(first: \$pageSize) {
@@ -724,17 +724,17 @@ GetRepos() {
                   endCursor
                 }
                 nodes {
-                  comments(first:1) {
+                  comments {
                     totalCount
                   }
                 }
               }
             }
           }
-          milestones(first:1) {
+          milestones {
             totalCount
           }
-          commitComments(first:1) {
+          commitComments {
             totalCount
           }
           issues(first: \$pageSize) {
@@ -744,18 +744,18 @@ GetRepos() {
               endCursor
             }
             nodes {
-              timeline(first:1) {
+              timeline {
                 totalCount
               }
-              comments(first:1) {
+              comments {
                 totalCount
               }
             }
           }
-          releases(first:1) {
+          releases {
             totalCount
           }
-          projects(first:1) {
+          projects {
             totalCount
           }
         }
@@ -1075,10 +1075,10 @@ GetNextIssues() {
           endCursor
         }
         nodes {
-          timeline(first: 1) {
+          timeline {
             totalCount
           }
-          comments(first: 1) {
+          comments {
             totalCount
           }
         }
@@ -1218,13 +1218,13 @@ GetNextPullRequests() {
         }
         nodes {
           number
-          commits(first:1) {
+          commits {
             totalCount
           }
-          timeline(first: 1) {
+          timeline {
             totalCount
           }
-          comments(first: 1) {
+          comments {
             totalCount
           }
           reviews(first: \$pageSize) {
@@ -1234,7 +1234,7 @@ GetNextPullRequests() {
               endCursor
             }
             nodes {
-              comments(first: 1) {
+              comments {
                 totalCount
               }
             }
@@ -1340,13 +1340,13 @@ GetNextReviews() {
       name
       pullRequest(number: \$number) {
         number
-        commits(first:1) {
+        commits {
           totalCount
         }
-        timeline(first: 1) {
+        timeline {
           totalCount
         }
-        comments(first: 1) {
+        comments {
           totalCount
         }
         reviews(first: \$pageSize, endCursor: \$endCursor) {
@@ -1356,7 +1356,7 @@ GetNextReviews() {
             endCursor
           }
           nodes {
-            comments(first: 1) {
+            comments {
               totalCount
             }
           }
