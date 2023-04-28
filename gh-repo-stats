@@ -49,6 +49,22 @@
 # - Repositories under 1 mb will be shown as 0mb
 #
 
+###########
+# GLOBALS #
+###########
+SLEEP='300'                                   # Number of seconds to sleep if out of API calls
+SLEEP_RETRY_COUNT='15'                        # Number of times to try to sleep before giving up
+SLEEP_COUNTER='0'                             # Counter of how many times we have gone to sleep
+EXISTING_FILE='0'                             # Check if a file already exists
+OUTPUT="${OUTPUT_PARAM:-CSV}"                 # Output type CSV or Table
+REPO_LIST_ARRAY=()                            # Array of repo names to be analyzed
+GITHUB_TOKEN_TYPE=${GITHUB_TOKEN_TYPE:-user}  # Whether 'user' or 'app' PAT
+VERSION="cloud"
+VERSION_MAJOR="0"
+VERSION_MINOR="0"
+REPO_PAGE_SIZE=10
+EXTRA_PAGE_SIZE=50
+
 ################################################################################
 #### Function PrintUsage #######################################################
 PrintUsage()
@@ -57,31 +73,35 @@ PrintUsage()
 Usage: gh repo-stats [options]
 
 Options:
-    -h, --help                    : Show script help
-    -d, --debug                   : Enable Debug logging
-    -u, --url                     : Set GitHub URL (e.g. https://github.example.com) Looks for GHE_URL environment
-                                    variable if omitted or defaults to https://github.com
-    -i, --input                   : Set path to a file with a list of organizations to scan, one per line, newline delimited
-    -t, --token                   : Set Personal Access Token with repo scope - Looks for GITHUB_TOKEN environment
-                                    variable if omitted
-    -y, --token-type              : Type of Personal Access. Can either "user" or "app" Default: user
-    -r, --analyze-repo-conflicts  : Checks the Repo Name against repos in other organizations and generates a list
-                                    of potential naming conflicts if those orgs are to be merged during migration
-    -T, --analyze-team-conflicts  : Gathers each org's teams and checks against other orgs to generate a list of
-                                    potential naming conflicts if those orgs are to be merged during migration
-    -p, --repo-page-size          : Set the pagination size for the initial repository GraphQL query - defaults to 20
-                                    If a timeout occurs, reduce this value
-    -e, --extra-page-size         : Set the pagination size for subsequent, paginated GraphQL queries - defaults to 20
-                                    If a timeout occurs, reduce this value
-    -o, --org                     : Name of the GitHub Organization to be analyzed           
-    -O, --output                  : Determine the output. Can either be "CSV" or "Table" Default: CSV
-    -rl, --repo-list              : Path to a file with a list of repositories to scan, one per line, newline delimited
+     -d, --debug                   : Enable Debug logging
+     -e, --extra-page-size         : Set the pagination size for subsequent, paginated GraphQL queries; reduce if timeout occurs
+                                     Default: $EXTRA_PAGE_SIZE
+     -h, --help                    : Show script help
+     -H, --hostname                : The GitHub hostname for the request
+                                     Default: github.com
+     -i, --input                   : Set path to a file with a list of organizations to scan, one per line, newline delimited
+     -o, --org                     : Name of the GitHub Organization to be analyzed           
+     -O, --output                  : Format of output, can either be "CSV" or "Table"
+                                     Default: $OUTPUT
+     -p, --repo-page-size          : Set the pagination size for the initial repository GraphQL query; reduce if timeout occurs
+                                     Default: $REPO_PAGE_SIZE
+                                     If a timeout occurs, reduce this value
+     -r, --analyze-repo-conflicts  : Checks the Repo Name against repos in other organizations and generates a list
+                                     of potential naming conflicts if those orgs are to be merged during migration
+    -rl, --repo-list               : Path to a file with a list of repositories to scan, one per line, newline delimited
+     -t, --token                   : Set Personal Access Token with repo scope
+                                     Default: token for hostname via gh auth token
+     -T, --analyze-team-conflicts  : Gathers each org's teams and checks against other orgs to generate a list of
+                                     potential naming conflicts if those orgs are to be merged during migration
+     -y, --token-type              : Type of Personal Access, can either be "user" or "app"
+                                     Default: $GITHUB_TOKEN_TYPE
 
 Description:
-get-repo-statistics scans an organization or list of organizations for all repositories and gathers size statistics for each repository
+  Scans an organization or list of organizations for all repositories and gathers size statistics for each repository
 
 Example:
-  gh repo-stats -u https://github.example.com -t ABCDEFG1234567 -o my-org-name
+  gh repo-stats -o my-org-name
+  gh repo-stats -o my-org-name -H github.example.com
 
 EOM
   exit 0
@@ -95,8 +115,8 @@ while (( "$#" )); do
     -h|--help)
       PrintUsage;
       ;;
-    -u|--url)
-      GHE_URL=$2
+    -H|--hostname)
+      export GH_HOST=$2
       shift 2
       ;;
     -d|--debug)
@@ -105,7 +125,7 @@ while (( "$#" )); do
       shift
       ;;
     -t|--token)
-      GITHUB_TOKEN=$2
+      export GH_TOKEN=$2
       shift 2
       ;;
     -y|--token-type)
@@ -164,25 +184,6 @@ done
 ##################################################
 eval set -- "$PARAMS"
 
-############
-# Defaults #
-############
-GHE_URL=${GHE_URL:-https://github.com} # Default to GitHub.com
-GITHUB_TOKEN=${GITHUB_TOKEN:-}         # Default to environment variable
-###########
-# GLOBALS #
-###########
-SLEEP='300'                                   # Number of seconds to sleep if out of API calls
-SLEEP_RETRY_COUNT='15'                        # Number of times to try to sleep before giving up
-SLEEP_COUNTER='0'                             # Counter of how many times we have gone to sleep
-EXISTING_FILE='0'                             # Check if a file already exists
-OUTPUT="${OUTPUT_PARAM:-CSV}"                 # Output type CSV or Table
-REPO_LIST_ARRAY=()                            # Array of repo names to be analyzed
-GITHUB_TOKEN_TYPE=${GITHUB_TOKEN_TYPE:-user}  # Whether 'user' or 'app' PAT
-VERSION="cloud"
-VERSION_MAJOR="0"
-VERSION_MINOR="0"
-
 ################################################################################
 ############################ FUNCTIONS #########################################
 ################################################################################
@@ -214,36 +215,6 @@ Header() {
   echo "######################################################"
   echo ""
 
-  ############################################
-  # Clean any whitespace that may be entered #
-  ############################################
-  GHE_URL_NO_WHITESPACE="$(echo -e "${GHE_URL}" | tr -d '[:space:]')"
-  GHE_URL=$GHE_URL_NO_WHITESPACE
-
-  #################################
-  # Get the Personal Access Token #
-  #################################
-  GetPersonalAccessToken
-
-  ################
-  # Set the URLS #
-  ################
-  if [[ "${GHE_URL}" == "https://github.com" ]]; then
-    GITHUB_URL="https://api.github.com"
-    GRAPHQL_URL="https://api.github.com/graphql"
-  else
-    GITHUB_URL="${GHE_URL}/api/v3"
-    GRAPHQL_URL="${GHE_URL}/api/graphql"
-  fi
-
-  if [[ -z "${REPO_PAGE_SIZE}" ]]; then
-    REPO_PAGE_SIZE=10
-  fi
-
-  if [[ -z "${EXTRA_PAGE_SIZE}" ]]; then
-    EXTRA_PAGE_SIZE=50
-  fi
-
   ################################################################
   # Validate we can hit the endpoint by getting the current user #
   ################################################################
@@ -262,7 +233,7 @@ Header() {
       # Check for success
       if [[ -z ${USER_LOGIN} ]]; then
         # Got bad return
-        echo "ERROR! Failed to validate GHE instance:[${GITHUB_URL}]"
+        echo "ERROR! Failed to validate GHE instance"
         echo "Received error: ${USER_DATA}"
         exit 1
       else
@@ -332,11 +303,6 @@ Header() {
     fi
   fi
 
-  #################################
-  # Get the personal access token #
-  #################################
-  GetPersonalAccessToken
-
   ###########################################
   # Make lower case to prevent weird issues #
   ###########################################
@@ -360,34 +326,6 @@ Footer() {
   fi
   echo "######################################################"
   echo ""
-}
-################################################################################
-#### Function GetPersonalAccessToken ###########################################
-GetPersonalAccessToken() {
-  ############################
-  # Check if we have a token #
-  ############################
-  if [[ -z ${GITHUB_TOKEN} ]]; then
-    ########################################
-    # Get the GitHub Personal Access Token #
-    ########################################
-    echo ""
-    echo "------------------------------------------------------"
-    echo "Falling back to GitHub token via 'gh auth token'"
-
-    GITHUB_TOKEN="$(gh auth token)"
-  fi
-  # Clean any whitespace that may be enetered
-  GITHUB_TOKEN_NO_WHITESPACE="$(echo -e "${GITHUB_TOKEN}" | tr -d '[:space:]')"
-  GITHUB_TOKEN="${GITHUB_TOKEN_NO_WHITESPACE}"
-
-  ##########################################
-  # Check the length of the PAT for sanity #
-  ##########################################
-  if [ ${#GITHUB_TOKEN} -ne 40 ]; then
-    echo "GitHub PAT's are 40 characters in length! you gave me ${#GITHUB_TOKEN} characters!"
-    exit 1
-  fi
 }
 ################################################################################
 #### Function GenerateFiles ####################################################
@@ -551,7 +489,10 @@ CheckAdminRights() {
 ################################################################################
 #### Function isGHEC ###########################################################
 isCloud() {
-  if [[ "${GITHUB_URL}" != "https://api.github.com" ]]; then
+  ROOT_DATA=$(gh api /)
+  USER_URL=$(echo -n "${ROOT_DATA}" | jq -r '.current_user_url')
+
+  if [[ "${USER_URL}" != "https://api.github.com/user" ]]; then
     echo 0;
   else
     echo 1;
@@ -767,6 +708,7 @@ GetRepos() {
             totalCount
           }
           updatedAt
+          url
         }
       }
     }
@@ -919,6 +861,7 @@ ParseRepoData() {
   UPDATED_AT=$(_jq '.updatedAt')
   HAS_WIKI=$(_jq '.hasWikiEnabled')
   IS_FORK=$(_jq '.isFork')
+  URL=$(_jq '.url')
 
   MILESTONE_CT=$(_jq '.milestones.totalCount')
   COLLABORATOR_CT=$(_jq '.collaborators.totalCount')
@@ -973,7 +916,7 @@ ParseRepoData() {
   ########################
   # Write it to the file #
   ########################
-  echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY}${PUSHED_AT},${UPDATED_AT},${IS_FORK},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${BRANCH_CT},${TAG_CT},${DISCUSSION_CT},${HAS_WIKI},${GHE_URL}/${ORG_NAME}/${REPO_NAME},${MIGRATION_ISSUE}" >> "${OUTPUT_FILE_NAME}"
+  echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY}${PUSHED_AT},${UPDATED_AT},${IS_FORK},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${BRANCH_CT},${TAG_CT},${DISCUSSION_CT},${HAS_WIKI},${URL},${MIGRATION_ISSUE}" >> "${OUTPUT_FILE_NAME}"
 
   #######################
   # Load the error code #
