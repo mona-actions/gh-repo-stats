@@ -106,7 +106,7 @@ tinyfists,publish-packages-to-repo-demo,false,2022-12-09T03:43:31Z,2021-10-11T19
 - `Project_Count`: Number of v1 projects
 - `Branch_Count`: Number of branches
 - `Tag_Count`: Number of tags
-- `Discussion_Count`: 'Number of discussions
+- `Discussion_Count`: Number of discussions
 - `Has_Wiki`: Whether the repository has wiki feature enabled; unable to tell whether user via API
 - `Full_URL`: Repository URL
 - `Migration_Issue`: Indicates whether the repository might have a problem during migration due to
