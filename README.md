@@ -27,7 +27,7 @@ Options:
      -H, --hostname                : The GitHub hostname for the request
                                      Default: github.com
      -i, --input                   : Set path to a file with a list of organizations to scan, one per line, newline delimited
-     -o, --org                     : Name of the GitHub Organization to be analyzed           
+     -o, --org                     : Name of the GitHub Organization to be analyzed
      -O, --output                  : Format of output, can either be "CSV" or "Table"
                                      Default: CSV
      -p, --repo-page-size          : Set the pagination size for the initial repository GraphQL query; reduce if timeout occurs
@@ -94,14 +94,14 @@ tinyfists,publish-packages-to-repo-demo,false,2022-12-09T03:43:31Z,2021-10-11T19
 - `Record_Count`: Number of database records this repository represents
 - `Collaborator_Count`: Number of users who have contributed to this repository
 - `Protected_Branch_Count`: Number of branch protection rules on this repository
-- `PR_Review_Count`: Number of pull request reviews 
-- `Milestone_Count`: Number of issue milestones 
-- `Issue_Count`: Number of issues 
-- `PR_Count`: Number of pull requests 
-- `PR_Review_Comment_Count`: Number of pull request review comments 
-- `Commit_Comment_Count`: Number of commit comments 
-- `Issue_Comment_Count`: Number of issue comments 
-- `Issue_Event_Count`: Number of issues 
+- `PR_Review_Count`: Number of pull request reviews
+- `Milestone_Count`: Number of issue milestones
+- `Issue_Count`: Number of issues
+- `PR_Count`: Number of pull requests
+- `PR_Review_Comment_Count`: Number of pull request review comments
+- `Commit_Comment_Count`: Number of commit comments
+- `Issue_Comment_Count`: Number of issue comments
+- `Issue_Event_Count`: Number of issues
 - `Release_Count`: Number of releases
 - `Project_Count`: Number of v1 projects
 - `Branch_Count`: Number of branches
@@ -109,6 +109,6 @@ tinyfists,publish-packages-to-repo-demo,false,2022-12-09T03:43:31Z,2021-10-11T19
 - `Discussion_Count`: 'Number of discussions
 - `Has_Wiki`: Whether the repository has wiki feature enabled; unable to tell whether user via API
 - `Full_URL`: Repository URL
-- `Migration_Issue": Indicates whether the repository might have a problem during migration due to 
+- `Migration_Issue": Indicates whether the repository might have a problem during migration due to
   - 60,000 or more number of objects being imported
   - 1.5 GB or larger size on disk
