@@ -109,6 +109,6 @@ tinyfists,publish-packages-to-repo-demo,false,2022-12-09T03:43:31Z,2021-10-11T19
 - `Discussion_Count`: 'Number of discussions
 - `Has_Wiki`: Whether the repository has wiki feature enabled; unable to tell whether user via API
 - `Full_URL`: Repository URL
-- `Migration_Issue": Indicates whether the repository might have a problem during migration due to
+- `Migration_Issue`: Indicates whether the repository might have a problem during migration due to
   - 60,000 or more number of objects being imported
   - 1.5 GB or larger size on disk
