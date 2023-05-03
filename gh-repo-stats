@@ -1314,7 +1314,7 @@ GetNextReviews() {
         comments {
           totalCount
         }
-        reviews(first: \$pageSize, endCursor: \$endCursor) {
+        reviews(first: \$pageSize, after: \$endCursor) {
           totalCount
           pageInfo {
             hasNextPage
