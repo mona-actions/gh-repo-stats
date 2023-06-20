@@ -50,4 +50,5 @@ jobs:
           VALIDATE_ALL_CODEBASE: false
           # Change to 'master' if your main branch differs
           DEFAULT_BRANCH: main
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }
+          [![Lint Code Base](https://github.com/mona-actions/gh-repo-stats/actions/workflows/linter.yml/badge.svg?event=repository_dispatch)](https://github.com/mona-actions/gh-repo-stats/actions/workflows/linter.yml)}
