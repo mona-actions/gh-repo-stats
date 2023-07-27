@@ -81,7 +81,7 @@ Options:
      -H, --hostname                : The GitHub hostname for the request
                                      Default: github.com
      -i, --input                   : Set path to a file with a list of organizations to scan, one per line, newline delimited
-     -o, --org                     : Name of the GitHub Organization to be analyzed           
+     -o, --org                     : Name of the GitHub Organization to be analyzed
      -O, --output                  : Format of output, can either be "CSV" or "Table"
                                      Default: $OUTPUT
      -p, --repo-page-size          : Set the pagination size for the initial repository GraphQL query; reduce if timeout occurs
@@ -222,7 +222,7 @@ Header() {
   if [[ ${GITHUB_TOKEN_TYPE} == "user" ]]; then
     USER_DATA=$(gh api /user)
     ERROR_CODE=$?
-  
+
     #######################
     # Validate the return #
     #######################
@@ -711,6 +711,28 @@ GetRepos() {
           }
           updatedAt
           url
+          languages(first: \$pageSize) {
+            nodes {
+              ... on Language {
+                name
+              }
+            }
+          }
+          primaryLanguage {
+            name
+          }
+          object(expression: "HEAD") {
+            ... on Commit {
+              authors(first: \$pageSize) {
+                nodes {
+                  ... on GitActor {
+                    name
+                    email
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -724,7 +746,7 @@ GetRepos() {
   fi
 
   ERROR_CODE=$?
-  
+
   if [ "${ERROR_CODE}" -ne 0 ]; then
     # We are using to big of a page size, so we need to do smaller pagination
     echo "Error getting Repos for Org: ${ORG_NAME}"
