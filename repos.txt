@@ -1,2 +1,10 @@
-monitoring
-pipelines
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# Author:    Grishanya <123794341+1234567891011111112227@users.noreply.github.com>
+#
+# On branch main
+# Changes to be committed:
+#	modified:   README.md
+#
