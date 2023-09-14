@@ -1,0 +1,34 @@
+g$ gh repo-stats --help
+
+Usage: gh repo-stats [options]
+
+Options:
+     -d, --debug                   : Enable Debug logging
+     -e, --extra-page-size         : Set the pagination size for subsequent, paginated GraphQL queries; reduce if timeout occurs
+                                     Default: 50
+     -h, --help                    : Show script help
+     -H, --hostname                : The GitHub hostname for the request
+                                     Default: github.com
+     -i, --input                   : Set path to a file with a list of organizations to scan, one per line, newline delimited
+     -o, --org                     : Name of the GitHub Organization to be analyzed
+     -O, --output                  : Format of output, can either be "CSV" or "Table"
+                                     Default: CSV
+     -p, --repo-page-size          : Set the pagination size for the initial repository GraphQL query; reduce if timeout occurs
+                                     Default: 10
+                                     If a timeout occurs, reduce this value
+     -r, --analyze-repo-conflicts  : Checks the Repo Name against repos in other organizations and generates a list
+                                     of potential naming conflicts if those orgs are to be merged during migration
+    -rl, --repo-list               : Path to a file with a list of repositories to scan, one per line, newline delimited
+     -t, --token                   : Set Personal Access Token with repo scope
+                                     Default: token for hostname via gh auth token
+     -T, --analyze-team-conflicts  : Gathers each org's teams and checks against other orgs to generate a list of
+                                     potential naming conflicts if those orgs are to be merged during migration
+     -y, --token-type              : Type of Personal Access, can either be "user" or "app"
+                                     Default: user
+
+Description:
+  Scans an organization or list of organizations for all repositories and gathers size statistics for each repository
+
+Example:
+  gh repo-stats -o my-org-name
+  gh repo-stats -o my-org-name -H github.example.com
