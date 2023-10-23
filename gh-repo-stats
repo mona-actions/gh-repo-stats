@@ -32,6 +32,7 @@
 # Releases
 # Projects
 # Migration URL
+# Created
 #
 # This will work for users on GitHub.com that are trying to figure out
 # how many repos they own, and how large they are.
@@ -435,7 +436,7 @@ GenerateFiles() {
       IS_EMPTY_HEADER="";
     fi
 
-    echo "Org_Name,Repo_Name,${IS_EMPTY_HEADER}Last_Push,Last_Update,isFork,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Branch_Count,Tag_Count,Discussion_Count,Has_Wiki,Full_URL,Migration_Issue" >> "${OUTPUT_FILE_NAME}" 2>&1
+    echo "Org_Name,Repo_Name,${IS_EMPTY_HEADER}Last_Push,Last_Update,isFork,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Branch_Count,Tag_Count,Discussion_Count,Has_Wiki,Full_URL,Migration_Issue,Created" >>"${OUTPUT_FILE_NAME}" 2>&1
 
     #######################
     # Load the error code #
@@ -639,6 +640,7 @@ GetRepos() {
           collaborators {
             totalCount
           }
+          createdAt
           diskUsage
           discussions {
             totalCount
@@ -859,6 +861,7 @@ ParseRepoData() {
     IS_EMPTY="$(_jq '.isEmpty'),"
   fi
 
+  CREATED_AT=$(_jq '.createdAt')
   PUSHED_AT=$(_jq '.pushedAt')
   UPDATED_AT=$(_jq '.updatedAt')
   HAS_WIKI=$(_jq '.hasWikiEnabled')
@@ -918,7 +921,7 @@ ParseRepoData() {
   ########################
   # Write it to the file #
   ########################
-  echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY}${PUSHED_AT},${UPDATED_AT},${IS_FORK},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${BRANCH_CT},${TAG_CT},${DISCUSSION_CT},${HAS_WIKI},${URL},${MIGRATION_ISSUE}" >> "${OUTPUT_FILE_NAME}"
+  echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY}${PUSHED_AT},${UPDATED_AT},${IS_FORK},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${BRANCH_CT},${TAG_CT},${DISCUSSION_CT},${HAS_WIKI},${URL},${MIGRATION_ISSUE},${CREATED_AT}" >>"${OUTPUT_FILE_NAME}"
 
   #######################
   # Load the error code #

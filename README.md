@@ -72,14 +72,14 @@ The permissions needed by `gh repo-stats` depends based on `-y, --token-type`:
 `gh repo-stats` produces either a visual table or `*.csv` file containing detailed information about various records within repositories.
 
 ```csv
-Org_Name,Repo_Name,Is_Empty,Last_Push,Last_Update,isFork,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Branch_Count,Tag_Count,Discussion_Count,Has_Wiki,Full_URL,Migration_Issue
-tinyfists,actions-experiments,false,2023-03-10T16:15:27Z,2022-10-28T19:38:34Z,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/actions-experiments,FALSE
-tinyfists,git-xargs,false,2022-12-09T03:44:39Z,2022-11-01T03:19:49Z,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/git-xargs,FALSE
-tinyfists,githubcustomer,false,2022-06-04T17:00:43Z,2022-05-10T03:05:16Z,false,0,25,18,0,0,0,4,0,0,0,0,3,0,0,1,0,0,true,https://github.com/tinyfists/githubcustomer,FALSE
-tinyfists,issue-driven-github-admin,false,2022-12-09T03:44:36Z,2022-10-14T22:03:38Z,false,2,1644,37,1,1,0,140,4,1,0,897,552,10,1,4,10,1,true,https://github.com/tinyfists/issue-driven-github-admin,FALSE
-tinyfists,multi-runner-poc,false,2022-12-09T03:43:30Z,2022-08-03T12:44:35Z,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/multi-runner-poc,FALSE
-tinyfists,pages-demo,false,2022-12-09T03:43:29Z,2022-11-17T23:44:50Z,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/pages-demo,FALSE
-tinyfists,publish-packages-to-repo-demo,false,2022-12-09T03:43:31Z,2021-10-11T19:39:32Z,false,0,24,18,0,0,0,0,3,0,0,0,3,0,0,2,0,0,true,https://github.com/tinyfists/publish-packages-to-repo-demo,FALSE
+Org_Name,Repo_Name,Is_Empty,Last_Push,Last_Update,isFork,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Branch_Count,Tag_Count,Discussion_Count,Has_Wiki,Full_URL,Migration_Issue,Created
+tinyfists,actions-experiments,false,2023-03-10T16:15:27Z,2022-10-28T19:38:34Z,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/actions-experiments,FALSE,2020-01-01T13:37:00Z
+tinyfists,git-xargs,false,2022-12-09T03:44:39Z,2022-11-01T03:19:49Z,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/git-xargs,FALSE,2020-01-01T13:37:00Z
+tinyfists,githubcustomer,false,2022-06-04T17:00:43Z,2022-05-10T03:05:16Z,false,0,25,18,0,0,0,4,0,0,0,0,3,0,0,1,0,0,true,https://github.com/tinyfists/githubcustomer,FALSE,2020-01-01T13:37:00Z
+tinyfists,issue-driven-github-admin,false,2022-12-09T03:44:36Z,2022-10-14T22:03:38Z,false,2,1644,37,1,1,0,140,4,1,0,897,552,10,1,4,10,1,true,https://github.com/tinyfists/issue-driven-github-admin,FALSE,2020-01-01T13:37:00Z
+tinyfists,multi-runner-poc,false,2022-12-09T03:43:30Z,2022-08-03T12:44:35Z,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/multi-runner-poc,FALSE,2020-01-01T13:37:00Z
+tinyfists,pages-demo,false,2022-12-09T03:43:29Z,2022-11-17T23:44:50Z,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/pages-demo,FALSE,2020-01-01T13:37:00Z
+tinyfists,publish-packages-to-repo-demo,false,2022-12-09T03:43:31Z,2021-10-11T19:39:32Z,false,0,24,18,0,0,0,0,3,0,0,0,3,0,0,2,0,0,true,https://github.com/tinyfists/publish-packages-to-repo-demo,FALSE,2020-01-01T13:37:00Z
 ```
 
 **Columns**
@@ -112,3 +112,4 @@ tinyfists,publish-packages-to-repo-demo,false,2022-12-09T03:43:31Z,2021-10-11T19
 - `Migration_Issue`: Indicates whether the repository might have a problem during migration due to
   - 60,000 or more number of objects being imported
   - 1.5 GB or larger size on disk
+- `Created`: Date/time when the repository was created
