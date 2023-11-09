@@ -72,7 +72,7 @@ The permissions needed by `gh repo-stats` depends based on `-y, --token-type`:
 `gh repo-stats` produces either a visual table or `*.csv` file containing detailed information about various records within repositories.
 
 ```csv
-Org_Name,Repo_Name,Is_Empty,Last_Push,Last_Update,isFork,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Branch_Count,Tag_Count,Discussion_Count,Has_Wiki,Full_URL,Migration_Issue,Created
+Org_Name,Repo_Name,Is_Empty,Last_Push,Last_Update,isFork,isArchive,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Branch_Count,Tag_Count,Discussion_Count,Has_Wiki,Full_URL,Migration_Issue,Created
 tinyfists,actions-experiments,false,2023-03-10T16:15:27Z,2022-10-28T19:38:34Z,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/actions-experiments,FALSE,2020-01-01T13:37:00Z
 tinyfists,git-xargs,false,2022-12-09T03:44:39Z,2022-11-01T03:19:49Z,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/git-xargs,FALSE,2020-01-01T13:37:00Z
 tinyfists,githubcustomer,false,2022-06-04T17:00:43Z,2022-05-10T03:05:16Z,false,0,25,18,0,0,0,4,0,0,0,0,3,0,0,1,0,0,true,https://github.com/tinyfists/githubcustomer,FALSE,2020-01-01T13:37:00Z
@@ -90,6 +90,7 @@ tinyfists,publish-packages-to-repo-demo,false,2022-12-09T03:43:31Z,2021-10-11T19
 - `Last_Push`: Date/time when a push was last made
 - `Last_Update`: Date/time when an update was last made
 - `isFork`: Whether the repository is a fork
+- `isArchive`: Whether the repository is archived
 - `Repo_Size(mb)`: Size of the repository in megabytes
 - `Record_Count`: Number of database records this repository represents
 - `Collaborator_Count`: Number of users who have contributed to this repository
