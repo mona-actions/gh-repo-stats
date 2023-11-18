@@ -1,0 +1,9 @@
+BEGIN:VCARD
+VERSION:3.0
+PRODID:-//Apple Inc.//iPhone OS 16.7//EN
+N:;NetSpend;;;
+FN:NetSpend
+EMAIL;type=INTERNET;type=pref:card@email.netspend.com
+item1.TEL;type=pref:+18663877363
+item1.X-ABLabel:work
+END:VCARD
