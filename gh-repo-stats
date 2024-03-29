@@ -213,7 +213,7 @@ Header() {
   echo ""
   echo "######################################################"
   echo "######################################################"
-  echo "############# Amenocal GitHub repo list and sizer #############"
+  echo "############# GitHub repo list and sizer #############"
   echo "######################################################"
   echo "######################################################"
   echo ""
@@ -493,7 +493,13 @@ CheckAdminRights() {
 ################################################################################
 #### Function isGHEC ###########################################################
 isCloud() {
-  ROOT_DATA=$(gh api //)
+  if [[ "$OSTYPE" == "msys" ]]; then
+    # If the operating system is Windows escape leading slash
+    ROOT_DATA=$(gh api //)
+  else
+    # If the operating system is Unix-like (e.g., Linux, macOS)
+    ROOT_DATA=$(gh api /)
+  fi
   USER_URL=$(echo -n "${ROOT_DATA}" | jq -r '.current_user_url')
 
   if [[ "${USER_URL}" != "https://api.github.com/user" ]]; then
@@ -797,9 +803,7 @@ ParseRepos() {
   PARSE_DATA=$1
 
   REPOS=$(echo "${PARSE_DATA}" | jq -r '.data.organization.repositories.nodes')
-  echo "decoding repos"
-  echo "${REPOS}"
-  for REPO_DATA in $(echo -n "${REPOS}" | jq -r '.[] | @base64' | tr -d '\n'); do
+  for REPO_DATA in $(echo -n "${REPOS}" | jq -r '.[] | @base64'); do
     _jq() {
     echo -n "${REPO_DATA}" | base64 --decode | jq -r "${1}"
     }
@@ -850,8 +854,6 @@ ParseRepoData() {
   # Pull in the repos data block
   REPO_DATA=$1
   # Convert the format to JSON
-  echo "decoding repo data"
-  echo "${REPO_DATA}"
   _jq() {
     echo -n "${REPO_DATA}" | base64 --decode | jq -r "${1}"
   }
@@ -974,8 +976,7 @@ ParseRepoData() {
 #### Function AnalyzeIssues ####################################################
 AnalyzeIssues() {
   THIS_REPO=$1
-  echo "decoding AnalyzeIssues THIS_REPO"
-  echo "${THIS_REPO}"
+
   _pr_issue_jq() {
    echo -n "${THIS_REPO}" | base64 --decode | jq -r "${1}"
   }
@@ -991,9 +992,8 @@ AnalyzeIssues() {
   # Get the Current End Cursor #
   ##############################
   ISSUE_NEXT_PAGE=$(_pr_issue_jq  '.issues.pageInfo.endCursor')
-  echo "decoding ISSUES"
-  echo "${ISSUES}"
-  for ISSUE in $(echo -n "${ISSUES}" | jq -r '.[] | @base64' | tr -d '\n'); do
+
+  for ISSUE in $(echo -n "${ISSUES}" | jq -r '.[] | @base64'); do
     _issue_jq() {
       echo -n "${ISSUE}" | base64 --decode | jq -r "${1}"
     }
@@ -1077,8 +1077,7 @@ GetNextIssues() {
       echo "ERROR --- Errors occurred while retrieving issues for repo: ${REPO_NAME}"
       echo "${ERROR_MESSAGE}" | jq '.'
     fi
-    echo "deocding ISSUE_REPO"
-    echo "${ISSUE_REPO}"
+    
     ISSUE_REPO=$(echo -n "${ISSUE_DATA}" | jq -r '.data.repository | @base64')
 
     ######################
@@ -1091,8 +1090,6 @@ GetNextIssues() {
 #### Function AnalyzePullRequests ##############################################
 AnalyzePullRequests() {
   PR_REPO=$1
-  echo "decoding AnalyzePullRequests PR_REPO"
-  echo "${PR_REPO}"
   _pr_repo_jq() {
    echo -n "${PR_REPO}" | base64 --decode | jq -r "${1}"
   }
@@ -1110,11 +1107,9 @@ AnalyzePullRequests() {
   # Get the Current End Cursor #
   ##############################
   PR_NEXT_PAGE=$(_pr_repo_jq  '.pullRequests.pageInfo.endCursor')
-  echo "decoding PRS"
-  echo "${PRS}"
-  for PR in $(echo -n "${PRS}" | jq -r '.[] | @base64' | tr -d '\n'); do
+  for PR in $(echo -n "${PRS}" | jq -r '.[] | @base64'); do
     _pr_jq() {
- echo -n "${PR}" | base64 --decode | jq -r "${1}"
+    echo -n "${PR}" | base64 --decode | jq -r "${1}"
     }
 
     PR_NUMBER=$(_pr_jq '.number')
@@ -1241,8 +1236,7 @@ GetNextPullRequests() {
       echo "ERROR --- Errors occurred while retrieving pull requests for repo: ${REPO_NAME}"
       echo "${ERROR_MESSAGE}" | jq '.'
     fi
-    echo "decoding PR_REPO"
-    echo "${PR_REPO}"
+
     PR_REPO=$(echo -n "${PR_DATA}" | jq -r '.data.repository | @base64')
 
     AnalyzePullRequests "${PR_REPO}"
@@ -1252,8 +1246,7 @@ GetNextPullRequests() {
 #### Function AnalyzeReviews ###################################################
 AnalyzeReviews() {
   REVIEW_PR=$1
-  echo "decoding AnalyzeReviews REVIEW_PR"
-  echo "${REVIEW_PR}"
+
   _review_jq() {
    echo -n "${REVIEW_PR}" | base64 --decode | jq -r "${1}"
   }
@@ -1272,8 +1265,7 @@ AnalyzeReviews() {
   PR_NUMBER=$(_review_jq '.number')
 
   Debug "Analyzing Pull Request Reviews for: ${REPO_NAME} PR: ${PR_NUMBER}"
-  echo "decoding REVIEWS"
-  echo "${REVIEWS}"
+
   for REVIEW in $(echo -n "${REVIEWS}" | jq -r '.[] | @base64'); do
     _pr_jq() {
  echo -n "${REVIEW}" | base64 --decode | jq -r "${1}"
@@ -1380,8 +1372,6 @@ GetNextReviews() {
     #####################
     # Get the Review PR #
     #####################
-    echo "decoding REVIEW_PR"
-    echo "${REVIEW_PR}"
     REVIEW_PR=$(echo -n "${REVIEW_DATA}" | jq -r '.data.repository.pullRequest | @base64')
 
     ######################
@@ -1439,8 +1429,7 @@ GetTeams() {
     # Get the Current End Cursor #
     ##############################
     TEAM_NEXT_PAGE=$(echo "${TEAM_DATA}" | jq -r '.data.organization.teams.pageInfo.endCursor')
-    echo "decoding teams"
-    echo "${TEAMS}"
+    
     for TEAM in $(echo -n "${TEAMS}" | jq -r '.[] | @base64'); do
       _team_jq() {
         echo -n "${TEAM}" | base64 --decode | jq -r "${1}"
