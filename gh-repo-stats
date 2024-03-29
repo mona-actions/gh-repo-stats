@@ -471,7 +471,7 @@ CheckAdminRights() {
   ##################
   # Get membership #
   ##################
-  MEMBERSHIP_DATA=$(gh api orgs/${ORG_NAME}/memberships/${USER_LOGIN})
+  MEMBERSHIP_DATA=$(gh api "orgs/${ORG_NAME}/memberships/${USER_LOGIN}")
   ERROR_CODE=$?
 
   if [ "${ERROR_CODE}" -ne 0 ]; then
