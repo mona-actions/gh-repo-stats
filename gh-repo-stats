@@ -222,7 +222,7 @@ Header() {
   # Validate we can hit the endpoint by getting the current user #
   ################################################################
   if [[ ${GITHUB_TOKEN_TYPE} == "user" ]]; then
-    USER_DATA=$(gh api /user)
+    USER_DATA=$(gh api user)
     ERROR_CODE=$?
   
     #######################
@@ -249,7 +249,7 @@ Header() {
   # Check GHE version #
   #####################
   if [[ "$(isCloud)" -eq 0  ]]; then
-    META_DATA=$(gh api /meta)
+    META_DATA=$(gh api meta)
     ERROR_CODE=$?
 
     #######################
@@ -471,7 +471,7 @@ CheckAdminRights() {
   ##################
   # Get membership #
   ##################
-  MEMBERSHIP_DATA=$(gh api "/orgs/${ORG_NAME}/memberships/${USER_LOGIN}")
+  MEMBERSHIP_DATA=$(gh api "orgs/${ORG_NAME}/memberships/${USER_LOGIN}")
   ERROR_CODE=$?
 
   if [ "${ERROR_CODE}" -ne 0 ]; then
@@ -493,7 +493,13 @@ CheckAdminRights() {
 ################################################################################
 #### Function isGHEC ###########################################################
 isCloud() {
-  ROOT_DATA=$(gh api /)
+  if [[ "$OSTYPE" == "msys" ]]; then
+    # If the operating system is Windows escape leading slash
+    ROOT_DATA=$(gh api //)
+  else
+    # If the operating system is Unix-like (e.g., Linux, macOS)
+    ROOT_DATA=$(gh api /)
+  fi
   USER_URL=$(echo -n "${ROOT_DATA}" | jq -r '.current_user_url')
 
   if [[ "${USER_URL}" != "https://api.github.com/user" ]]; then
@@ -560,7 +566,7 @@ CheckAPILimit() {
   ##############################################################
   # Check what is remaining, and if 0, we need to sleep it off #
   ##############################################################
-  API_REMAINING_REQUEST=$(gh api /rate_limit)
+  API_REMAINING_REQUEST=$(gh api rate_limit)
   API_REMAINING_MESSAGE=$(echo "${API_REMAINING_REQUEST}" | jq -r '.message' 2>&1)
 
   if [[ "${API_REMAINING_MESSAGE}" != "Rate limiting is not enabled." ]]; then
@@ -1071,7 +1077,7 @@ GetNextIssues() {
       echo "ERROR --- Errors occurred while retrieving issues for repo: ${REPO_NAME}"
       echo "${ERROR_MESSAGE}" | jq '.'
     fi
-
+    
     ISSUE_REPO=$(echo -n "${ISSUE_DATA}" | jq -r '.data.repository | @base64')
 
     ######################
@@ -1084,7 +1090,6 @@ GetNextIssues() {
 #### Function AnalyzePullRequests ##############################################
 AnalyzePullRequests() {
   PR_REPO=$1
-
   _pr_repo_jq() {
    echo -n "${PR_REPO}" | base64 --decode | jq -r "${1}"
   }
@@ -1102,10 +1107,9 @@ AnalyzePullRequests() {
   # Get the Current End Cursor #
   ##############################
   PR_NEXT_PAGE=$(_pr_repo_jq  '.pullRequests.pageInfo.endCursor')
-
   for PR in $(echo -n "${PRS}" | jq -r '.[] | @base64'); do
     _pr_jq() {
- echo -n "${PR}" | base64 --decode | jq -r "${1}"
+    echo -n "${PR}" | base64 --decode | jq -r "${1}"
     }
 
     PR_NUMBER=$(_pr_jq '.number')
@@ -1425,7 +1429,7 @@ GetTeams() {
     # Get the Current End Cursor #
     ##############################
     TEAM_NEXT_PAGE=$(echo "${TEAM_DATA}" | jq -r '.data.organization.teams.pageInfo.endCursor')
-
+    
     for TEAM in $(echo -n "${TEAMS}" | jq -r '.[] | @base64'); do
       _team_jq() {
         echo -n "${TEAM}" | base64 --decode | jq -r "${1}"
