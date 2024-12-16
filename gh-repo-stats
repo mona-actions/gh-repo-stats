@@ -1386,7 +1386,7 @@ GetTeams() {
 
   QUERY="query(\$owner: String!, \$pageSize: Int!, \$endCursor: String) {
     organization(login: \$owner) {
-      teams(first: \$pageSize, endCursor: \$endCursor) {
+      teams(first: \$pageSize, after: \$endCursor) {
         pageInfo {
           hasNextPage
           endCursor
