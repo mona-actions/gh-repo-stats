@@ -437,7 +437,7 @@ GenerateFiles() {
       IS_EMPTY_HEADER="";
     fi
 
-    echo "Org_Name,Repo_Name,${IS_EMPTY_HEADER}Last_Push,Last_Update,isFork,isArchived,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Branch_Count,Tag_Count,Discussion_Count,Has_Wiki,Full_URL,Migration_Issue,Created" >>"${OUTPUT_FILE_NAME}" 2>&1
+    echo "Org_Name,Repo_Name,${IS_EMPTY_HEADER}Last_Push,Last_Update,isFork,isArchived,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Branch_Count,Tag_Count,Discussion_Count,Has_Wiki,Full_URL,Migration_Issue,Created,Status" >>"${OUTPUT_FILE_NAME}" 2>&1
 
     #######################
     # Load the error code #
@@ -821,7 +821,7 @@ ParseRepos() {
       for REPO in "${REPO_LIST_ARRAY[@]}"; do
         if [[ "${REPO}" == "${CHECK_REPO_NAME}" ]]; then
           # Found a match, we can continue
-          ParseRepoData "${REPO_DATA}"
+          ParseRepoData "${REPO_DATA}" "completed"
         fi
       done
     else
@@ -843,16 +843,26 @@ ParseRepos() {
         echo "Repo:[${OWNER}/${REPO_NAME}] has previously been analyzed, moving on..."
       elif [ ${ERROR_CODE} -ne 0 ] && [[ -z "${REPO_LIST_FILE}" ]]; then
         echo "Analyzing Repo: ${REPO_NAME}"
-        ParseRepoData "${REPO_DATA}"
+        ParseRepoData "${REPO_DATA}" "completed"
       fi
     fi
   done
+
+  if [[ -n "${REPO_LIST_FILE}" ]]; then
+    for REPO in "${REPO_LIST_ARRAY[@]}"; do
+      if ! grep -q ",${REPO}," "${OUTPUT_FILE_NAME}"; then
+        echo "Repo:[${REPO}] does not exist, marking as not found..."
+        echo "${ORG_NAME},${REPO},,,,,,,,,,,,,,,,,,,,,,,,,,,not found" >>"${OUTPUT_FILE_NAME}"
+      fi
+    done
+  fi
 }
 ################################################################################
 #### Function ParseRepoData ####################################################
 ParseRepoData() {
   # Pull in the repos data block
   REPO_DATA=$1
+  STATUS=$2
   # Convert the format to JSON
   _jq() {
     echo -n "${REPO_DATA}" | base64 --decode | jq -r "${1}"
@@ -930,7 +940,7 @@ ParseRepoData() {
   ########################
   # Write it to the file #
   ########################
-  echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY}${PUSHED_AT},${UPDATED_AT},${IS_FORK},${IS_ARCHIVED},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${BRANCH_CT},${TAG_CT},${DISCUSSION_CT},${HAS_WIKI},${URL},${MIGRATION_ISSUE},${CREATED_AT}" >>"${OUTPUT_FILE_NAME}"
+  echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY}${PUSHED_AT},${UPDATED_AT},${IS_FORK},${IS_ARCHIVED},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${BRANCH_CT},${TAG_CT},${DISCUSSION_CT},${HAS_WIKI},${URL},${MIGRATION_ISSUE},${CREATED_AT},${STATUS}" >>"${OUTPUT_FILE_NAME}"
 
   #######################
   # Load the error code #
