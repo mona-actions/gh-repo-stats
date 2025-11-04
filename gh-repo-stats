@@ -678,7 +678,7 @@ GetRepos() {
           owner {
             login
           }
-          projects {
+          projectsV2 {
             totalCount
           }
           pullRequests(first: \$pageSize) {
