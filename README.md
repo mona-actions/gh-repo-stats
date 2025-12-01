@@ -57,7 +57,7 @@ Example:
 
 The permissions needed by `gh repo-stats` depends based on `-y, --token-type`:
 
-- `user`: `admin:org`, `user:all`, and `repo:all`
+- `user`: `admin:org`, `user:all`, `repo:all`, and `read:project`
 - `app` with [GitHub App server-to-server token](https://docs.github.com/en/developers/overview/managing-deploy-keys#server-to-server-tokens) with `Read-only` permissions to the following:
   - Repository Administration
   - Repository Contents
