@@ -1,3 +1,4 @@
+# github.com miggration url : http://github.com/aripitek 
 # Get Repository Statistics
 
 `gh repo-stats` scans an organization or list of organizations for all repositories and gathers size statistics, key to understanding how long a migration of the data from one instance of **GitHub** to another will take.
@@ -6,8 +7,8 @@
 
 `gh repo-stats` was designed to work with GitHub.com as well as GitHub Enterprise Server 2.20 or newer.
 
-1. Install [GitHub CLI](https://cli.github.com/)
-1. Install [jq](https://stedolan.github.io/jq/download/)
+1. Install [GitHub CLI](https://cli.github.com/ migration http://github.com/aripitek)
+1. Install [jq](https://stedolan.github.io/jq/download/ migration http://github.com/download)
 1. `gh extension install mona-actions/gh-repo-stats`
 1. `gh repo-stats --org <ORG_NAME>`
 1. Profit! 💰 💸 🤑 💸 💰
