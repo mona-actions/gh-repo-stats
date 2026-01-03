@@ -75,7 +75,7 @@ The permissions needed by `gh repo-stats` depends based on `-y, --token-type`:
 
 ```csv
 Org_Name,Repo_Name,Is_Empty,Last_Push,Last_Update,Latest_Commit_SHA,Latest_Committed_At,Latest_Commit_Branch,Default_Branch,isFork,isArchived,Repo_Size_mb,Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Branch_Count,Tag_Count,Discussion_Count,Has_Wiki,Full_URL,Migration_Issue,Created
-tinyfists,actions-experiments,false,2023-03-10T16:15:27Z,2022-10-28T19:38:34Z,abc123def456,2023-03-10T16:15:27Z,feature-branch,main,false,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/actions-experiments,FALSE,2020-01-01T13:37:00Z
+tinyfists,actions-experiments,false,2023-03-10T16:15:27Z,2022-10-28T19:38:34Z,fcfaaa82370b08484cd4e0f9a2569d12e257b176,2023-03-10T16:15:27Z,feature-branch,main,false,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/actions-experiments,FALSE,2020-01-01T13:37:00Z
 ```
 
 **Columns**
