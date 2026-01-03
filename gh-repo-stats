@@ -275,11 +275,17 @@ LoadFieldConfig() {
       ((enabled_count++))
       Debug "Field enabled: ${field_name}"
     elif [[ "${should_fetch}" == "false" ]]; then
+      # NOTE: We wrap each disabled field name with leading and trailing commas.
+      # This allows other code (e.g., IsFieldEnabled) to safely check for
+      # ",field_name," in DISABLED_FIELDS without accidentally matching
+      # substrings of other field names. For example, a single disabled field
+      # results in DISABLED_FIELDS=",Field_Name,", which still matches
+      # the lookup pattern ",Field_Name," correctly.
       DISABLED_FIELDS="${DISABLED_FIELDS},${field_name},"
       ((disabled_count++))
       Debug "Field disabled: ${field_name}"
     else
-      echo "WARN: Invalid value for field ${field_name}: ${should_fetch} (expected true/false)"
+      echo "WARN: Invalid value for field ${field_name} at line ${line_num}: ${should_fetch} (expected true/false)"
     fi
   done < "${FIELD_CONFIG_FILE}"
 
@@ -317,16 +323,17 @@ IsFieldEnabled() {
 }
 ################################################################################
 #### Function GetAllBranchesWithLatestCommit ###################################
-# Fetches all branches for a repository using pagination and returns the latest
-# commit info (SHA, date, branch name) across ALL branches
+# Fetches all branches for a repository using pagination and updates the global
+# variables LATEST_COMMIT_SHA, LATEST_COMMITTED_AT, and LATEST_COMMIT_BRANCH
+# with the latest commit info (SHA, date, branch name) across ALL branches.
 GetAllBranchesWithLatestCommit() {
   local owner=$1
   local repo_name=$2
   local branch_count=$3
   
-  # If 100 or fewer branches, use the already-fetched data (passed via global)
+  # If 100 or fewer branches, the initial GraphQL query already fetched all branches
   if [[ ${branch_count} -le 100 ]]; then
-    return 0  # Caller will use already-fetched allBranches data
+    return 0  # No extra pagination needed; ParseRepoData will use the already-fetched allBranches data
   fi
   
   Debug "Repository ${owner}/${repo_name} has ${branch_count} branches, fetching all with pagination..."
@@ -542,6 +549,7 @@ Header() {
   ###########################################
   ORG_NAME=$(echo "${ORG_NAME}" | tr '[:upper:]' '[:lower:]')
 }
+################################################################################
 ################################################################################
 #### Function Footer ###########################################################
 Footer() {
@@ -905,8 +913,10 @@ GetRepos() {
           branches: refs(refPrefix:\"refs/heads/\") {
             totalCount
           }
-          # Initial fetch of first 100 branches. If repo has >100 branches,
-          # GetAllBranchesWithLatestCommit() will paginate to fetch all branches.
+          # Initial fetch of first 100 branches (GitHub GraphQL max page size).
+          # This is intentionally hardcoded and independent of EXTRA_PAGE_SIZE;
+          # if the repo has >100 branches, GetAllBranchesWithLatestCommit() will
+          # paginate using EXTRA_PAGE_SIZE to fetch all remaining branches.
           allBranches: refs(refPrefix: \"refs/heads/\", first: 100) {
             nodes {
               name
