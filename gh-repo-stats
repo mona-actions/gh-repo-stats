@@ -16,9 +16,13 @@
 # If empty
 # Last push
 # Last commit
+# Latest Commit SHA (most recent commit across all branches, with pagination for repos with >100 branches)
+# Latest Committed At (timestamp of the most recent commit)
+# Latest Commit Branch (branch name where the latest commit was made)
+# Default Branch (default branch of the repo, or "No default branch")
 # isFork
 # isArchived
-# Size(mb)
+# Repo_Size_mb
 # Total record count
 # Collaborator count
 # Protected branches
@@ -67,6 +71,8 @@ VERSION_MAJOR="0"
 VERSION_MINOR="0"
 REPO_PAGE_SIZE=10
 EXTRA_PAGE_SIZE=50
+FIELD_CONFIG_FILE=""                          # Path to field configuration CSV file
+DISABLED_FIELDS=""                            # Comma-separated list of disabled fields
 
 ################################################################################
 #### Function PrintUsage #######################################################
@@ -76,6 +82,8 @@ PrintUsage()
 Usage: gh repo-stats [options]
 
 Options:
+     -c, --config                  : Path to field configuration CSV file (Field_Name,Should_Fetch format)
+                                     If not provided, all fields are fetched
      -d, --debug                   : Enable Debug logging
      -e, --extra-page-size         : Set the pagination size for subsequent, paginated GraphQL queries; reduce if timeout occurs
                                      Default: $EXTRA_PAGE_SIZE
@@ -120,6 +128,10 @@ while (( "$#" )); do
       ;;
     -H|--hostname)
       export GH_HOST=$2
+      shift 2
+      ;;
+    -c|--config)
+      FIELD_CONFIG_FILE=$2
       shift 2
       ;;
     -d|--debug)
@@ -206,6 +218,225 @@ Debug() {
   if [[ ${DEBUG} == true ]]; then
     echo "$1"
   fi
+}
+################################################################################
+#### Function LoadFieldConfig ##################################################
+LoadFieldConfig() {
+  # Initialize - by default all fields are enabled (DISABLED_FIELDS is empty)
+  DISABLED_FIELDS=""
+
+  # If no config file specified, all fields remain enabled
+  if [[ -z "${FIELD_CONFIG_FILE}" ]]; then
+    Debug "No field config file specified, all fields enabled"
+    return 0
+  fi
+
+  # Check if config file exists
+  if [[ ! -f "${FIELD_CONFIG_FILE}" ]]; then
+    echo "WARN: Field config file not found: ${FIELD_CONFIG_FILE}"
+    echo "Proceeding with all fields enabled"
+    return 0
+  fi
+
+  echo "Loading field configuration from: ${FIELD_CONFIG_FILE}"
+
+  # Read the config file and build DISABLED_FIELDS list
+  local line_num=0
+  local enabled_count=0
+  local disabled_count=0
+  local repo_name_found=0
+  local repo_name_enabled=0
+  while IFS=',' read -r field_name should_fetch || [[ -n "$field_name" ]]; do
+    ((line_num++))
+    # Skip header line
+    if [[ ${line_num} -eq 1 ]]; then
+      continue
+    fi
+    
+    # Trim whitespace
+    field_name=$(echo "${field_name}" | tr -d '[:space:]')
+    should_fetch=$(echo "${should_fetch}" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+    
+    # Skip empty lines
+    if [[ -z "${field_name}" ]]; then
+      continue
+    fi
+
+    # Track Repo_Name field specifically
+    if [[ "${field_name}" == "Repo_Name" ]]; then
+      repo_name_found=1
+      if [[ "${should_fetch}" == "true" ]]; then
+        repo_name_enabled=1
+      fi
+    fi
+
+    # Track disabled fields
+    if [[ "${should_fetch}" == "true" ]]; then
+      ((enabled_count++))
+      Debug "Field enabled: ${field_name}"
+    elif [[ "${should_fetch}" == "false" ]]; then
+      DISABLED_FIELDS="${DISABLED_FIELDS},${field_name},"
+      ((disabled_count++))
+      Debug "Field disabled: ${field_name}"
+    else
+      echo "WARN: Invalid value for field ${field_name}: ${should_fetch} (expected true/false)"
+    fi
+  done < "${FIELD_CONFIG_FILE}"
+
+  # Validate that Repo_Name is present and enabled when using a config file
+  if [[ ${repo_name_found} -eq 0 ]]; then
+    echo ""
+    echo "❌ ERROR: Required field 'Repo_Name' is missing from the configuration file."
+    echo "   The 'Repo_Name' field is required for proper CSV output and sorting."
+    echo ""
+    echo "   Please add 'Repo_Name,true' to your configuration file: ${FIELD_CONFIG_FILE}"
+    exit 1
+  fi
+
+  if [[ ${repo_name_enabled} -eq 0 ]]; then
+    echo ""
+    echo "❌ ERROR: Required field 'Repo_Name' is disabled in the configuration file."
+    echo "   The 'Repo_Name' field is required for proper CSV output and sorting."
+    echo ""
+    echo "   Please set 'Repo_Name' to 'true' in your configuration file: ${FIELD_CONFIG_FILE}"
+    exit 1
+  fi
+
+  echo "Field configuration loaded: ${enabled_count} fields enabled, ${disabled_count} fields disabled"
+}
+################################################################################
+#### Function IsFieldEnabled ###################################################
+IsFieldEnabled() {
+  local field_name="$1"
+  # Check if field is in the disabled list
+  if [[ "${DISABLED_FIELDS}" == *",${field_name},"* ]]; then
+    return 1  # false - field is disabled
+  else
+    return 0  # true - field is enabled
+  fi
+}
+################################################################################
+#### Function GetAllBranchesWithLatestCommit ###################################
+# Fetches all branches for a repository using pagination and returns the latest
+# commit info (SHA, date, branch name) across ALL branches
+GetAllBranchesWithLatestCommit() {
+  local owner=$1
+  local repo_name=$2
+  local branch_count=$3
+  
+  # If 100 or fewer branches, use the already-fetched data (passed via global)
+  if [[ ${branch_count} -le 100 ]]; then
+    return 0  # Caller will use already-fetched allBranches data
+  fi
+  
+  Debug "Repository ${owner}/${repo_name} has ${branch_count} branches, fetching all with pagination..."
+  
+  local BRANCH_QUERY="query(\$owner: String!, \$name: String!, \$pageSize: Int!, \$endCursor: String) {
+    repository(owner: \$owner, name: \$name) {
+      refs(refPrefix: \"refs/heads/\", first: \$pageSize, after: \$endCursor) {
+        pageInfo {
+          endCursor
+          hasNextPage
+        }
+        nodes {
+          name
+          target {
+            ... on Commit {
+              oid
+              committedDate
+            }
+          }
+        }
+      }
+    }
+  }"
+  
+  local ALL_BRANCHES_JSON="[]"
+  local HAS_NEXT_BRANCH_PAGE="true"
+  local BRANCH_CURSOR=""
+  
+  while [[ "${HAS_NEXT_BRANCH_PAGE}" == "true" ]]; do
+    local BRANCH_DATA
+    if [[ -n "${BRANCH_CURSOR}" ]]; then
+      BRANCH_DATA=$(gh api graphql -f query="${BRANCH_QUERY}" -F owner="${owner}" -F name="${repo_name}" -F pageSize="${EXTRA_PAGE_SIZE}" -F endCursor="${BRANCH_CURSOR}" 2>/dev/null)
+    else
+      BRANCH_DATA=$(gh api graphql -f query="${BRANCH_QUERY}" -F owner="${owner}" -F name="${repo_name}" -F pageSize="${EXTRA_PAGE_SIZE}" 2>/dev/null)
+    fi
+    
+    local BRANCH_ERROR=$?
+    if [[ ${BRANCH_ERROR} -ne 0 ]]; then
+      Debug "Error fetching branches for ${owner}/${repo_name}, using partial data"
+      break
+    fi
+    
+    # Extract branch nodes and merge with accumulated data
+    local NEW_BRANCHES
+    NEW_BRANCHES=$(echo "${BRANCH_DATA}" | jq -r '.data.repository.refs.nodes')
+    ALL_BRANCHES_JSON=$(echo "${ALL_BRANCHES_JSON}" "${NEW_BRANCHES}" | jq -s 'add')
+    
+    # Check for more pages
+    HAS_NEXT_BRANCH_PAGE=$(echo "${BRANCH_DATA}" | jq -r '.data.repository.refs.pageInfo.hasNextPage')
+    BRANCH_CURSOR=$(echo "${BRANCH_DATA}" | jq -r '.data.repository.refs.pageInfo.endCursor')
+  done
+  
+  # Find the latest commit across all branches
+  local LATEST
+  LATEST=$(echo "${ALL_BRANCHES_JSON}" | jq -r '[.[] | select(.target.committedDate != null)] | sort_by(.target.committedDate) | reverse | .[0]')
+  
+  if [[ -n "${LATEST}" && "${LATEST}" != "null" ]]; then
+    LATEST_COMMIT_SHA=$(echo "${LATEST}" | jq -r '.target.oid // empty')
+    LATEST_COMMITTED_AT=$(echo "${LATEST}" | jq -r '.target.committedDate // empty')
+    LATEST_COMMIT_BRANCH=$(echo "${LATEST}" | jq -r '.name // empty')
+  fi
+  
+  Debug "Found latest commit across ${branch_count} branches: ${LATEST_COMMIT_SHA} on ${LATEST_COMMIT_BRANCH}"
+}
+################################################################################
+#### Function BuildOutputRow ###################################################
+BuildOutputRow() {
+  # Build output row based on enabled fields
+  # Uses global variables for field values
+  local OUTPUT_ROW=""
+  
+  IsFieldEnabled "Org_Name" && OUTPUT_ROW="${OUTPUT_ROW}${ORG_NAME},"
+  IsFieldEnabled "Repo_Name" && OUTPUT_ROW="${OUTPUT_ROW}${REPO_NAME},"
+  if [[ "$(isCompatibleGHESVersion)" -eq "1" ]]; then
+    IsFieldEnabled "Is_Empty" && OUTPUT_ROW="${OUTPUT_ROW}${IS_EMPTY},"
+  fi
+  IsFieldEnabled "Last_Push" && OUTPUT_ROW="${OUTPUT_ROW}${PUSHED_AT},"
+  IsFieldEnabled "Last_Update" && OUTPUT_ROW="${OUTPUT_ROW}${UPDATED_AT},"
+  IsFieldEnabled "Latest_Commit_SHA" && OUTPUT_ROW="${OUTPUT_ROW}${LATEST_COMMIT_SHA},"
+  IsFieldEnabled "Latest_Committed_At" && OUTPUT_ROW="${OUTPUT_ROW}${LATEST_COMMITTED_AT},"
+  IsFieldEnabled "Latest_Commit_Branch" && OUTPUT_ROW="${OUTPUT_ROW}${LATEST_COMMIT_BRANCH},"
+  IsFieldEnabled "Default_Branch" && OUTPUT_ROW="${OUTPUT_ROW}${DEFAULT_BRANCH},"
+  IsFieldEnabled "isFork" && OUTPUT_ROW="${OUTPUT_ROW}${IS_FORK},"
+  IsFieldEnabled "isArchived" && OUTPUT_ROW="${OUTPUT_ROW}${IS_ARCHIVED},"
+  IsFieldEnabled "Repo_Size_mb" && OUTPUT_ROW="${OUTPUT_ROW}${REPO_SIZE},"
+  IsFieldEnabled "Record_Count" && OUTPUT_ROW="${OUTPUT_ROW}${RECORD_CT},"
+  IsFieldEnabled "Collaborator_Count" && OUTPUT_ROW="${OUTPUT_ROW}${COLLABORATOR_CT},"
+  IsFieldEnabled "Protected_Branch_Count" && OUTPUT_ROW="${OUTPUT_ROW}${PROTECTED_BRANCH_CT},"
+  IsFieldEnabled "PR_Review_Count" && OUTPUT_ROW="${OUTPUT_ROW}${PR_REVIEW_CT},"
+  IsFieldEnabled "Milestone_Count" && OUTPUT_ROW="${OUTPUT_ROW}${MILESTONE_CT},"
+  IsFieldEnabled "Issue_Count" && OUTPUT_ROW="${OUTPUT_ROW}${ISSUE_CT},"
+  IsFieldEnabled "PR_Count" && OUTPUT_ROW="${OUTPUT_ROW}${PR_CT},"
+  IsFieldEnabled "PR_Review_Comment_Count" && OUTPUT_ROW="${OUTPUT_ROW}${PR_REVIEW_COMMENT_CT},"
+  IsFieldEnabled "Commit_Comment_Count" && OUTPUT_ROW="${OUTPUT_ROW}${COMMIT_COMMENT_CT},"
+  IsFieldEnabled "Issue_Comment_Count" && OUTPUT_ROW="${OUTPUT_ROW}${ISSUE_COMMENT_CT},"
+  IsFieldEnabled "Issue_Event_Count" && OUTPUT_ROW="${OUTPUT_ROW}${ISSUE_EVENT_CT},"
+  IsFieldEnabled "Release_Count" && OUTPUT_ROW="${OUTPUT_ROW}${RELEASE_CT},"
+  IsFieldEnabled "Project_Count" && OUTPUT_ROW="${OUTPUT_ROW}${PROJECT_CT},"
+  IsFieldEnabled "Branch_Count" && OUTPUT_ROW="${OUTPUT_ROW}${BRANCH_CT},"
+  IsFieldEnabled "Tag_Count" && OUTPUT_ROW="${OUTPUT_ROW}${TAG_CT},"
+  IsFieldEnabled "Discussion_Count" && OUTPUT_ROW="${OUTPUT_ROW}${DISCUSSION_CT},"
+  IsFieldEnabled "Has_Wiki" && OUTPUT_ROW="${OUTPUT_ROW}${HAS_WIKI},"
+  IsFieldEnabled "Full_URL" && OUTPUT_ROW="${OUTPUT_ROW}${URL},"
+  IsFieldEnabled "Migration_Issue" && OUTPUT_ROW="${OUTPUT_ROW}${MIGRATION_ISSUE},"
+  IsFieldEnabled "Created" && OUTPUT_ROW="${OUTPUT_ROW}${CREATED_AT},"
+
+  # Remove trailing comma
+  OUTPUT_ROW="${OUTPUT_ROW%,}"
+  
+  echo "${OUTPUT_ROW}"
 }
 ################################################################################
 #### Function Header ###########################################################
@@ -432,12 +663,48 @@ GenerateFiles() {
     #############################
     echo "Creating file header..."
 
-    IS_EMPTY_HEADER="Is_Empty,";
-    if [[ "$(isCompatibleGHESVersion)" -eq "2" ]]; then
-      IS_EMPTY_HEADER="";
+    # Build dynamic header based on enabled fields
+    HEADER=""
+    
+    IsFieldEnabled "Org_Name" && HEADER="${HEADER}Org_Name,"
+    IsFieldEnabled "Repo_Name" && HEADER="${HEADER}Repo_Name,"
+    if [[ "$(isCompatibleGHESVersion)" -eq "1" ]]; then
+      IsFieldEnabled "Is_Empty" && HEADER="${HEADER}Is_Empty,"
     fi
+    IsFieldEnabled "Last_Push" && HEADER="${HEADER}Last_Push,"
+    IsFieldEnabled "Last_Update" && HEADER="${HEADER}Last_Update,"
+    IsFieldEnabled "Latest_Commit_SHA" && HEADER="${HEADER}Latest_Commit_SHA,"
+    IsFieldEnabled "Latest_Committed_At" && HEADER="${HEADER}Latest_Committed_At,"
+    IsFieldEnabled "Latest_Commit_Branch" && HEADER="${HEADER}Latest_Commit_Branch,"
+    IsFieldEnabled "Default_Branch" && HEADER="${HEADER}Default_Branch,"
+    IsFieldEnabled "isFork" && HEADER="${HEADER}isFork,"
+    IsFieldEnabled "isArchived" && HEADER="${HEADER}isArchived,"
+    IsFieldEnabled "Repo_Size_mb" && HEADER="${HEADER}Repo_Size_mb,"
+    IsFieldEnabled "Record_Count" && HEADER="${HEADER}Record_Count,"
+    IsFieldEnabled "Collaborator_Count" && HEADER="${HEADER}Collaborator_Count,"
+    IsFieldEnabled "Protected_Branch_Count" && HEADER="${HEADER}Protected_Branch_Count,"
+    IsFieldEnabled "PR_Review_Count" && HEADER="${HEADER}PR_Review_Count,"
+    IsFieldEnabled "Milestone_Count" && HEADER="${HEADER}Milestone_Count,"
+    IsFieldEnabled "Issue_Count" && HEADER="${HEADER}Issue_Count,"
+    IsFieldEnabled "PR_Count" && HEADER="${HEADER}PR_Count,"
+    IsFieldEnabled "PR_Review_Comment_Count" && HEADER="${HEADER}PR_Review_Comment_Count,"
+    IsFieldEnabled "Commit_Comment_Count" && HEADER="${HEADER}Commit_Comment_Count,"
+    IsFieldEnabled "Issue_Comment_Count" && HEADER="${HEADER}Issue_Comment_Count,"
+    IsFieldEnabled "Issue_Event_Count" && HEADER="${HEADER}Issue_Event_Count,"
+    IsFieldEnabled "Release_Count" && HEADER="${HEADER}Release_Count,"
+    IsFieldEnabled "Project_Count" && HEADER="${HEADER}Project_Count,"
+    IsFieldEnabled "Branch_Count" && HEADER="${HEADER}Branch_Count,"
+    IsFieldEnabled "Tag_Count" && HEADER="${HEADER}Tag_Count,"
+    IsFieldEnabled "Discussion_Count" && HEADER="${HEADER}Discussion_Count,"
+    IsFieldEnabled "Has_Wiki" && HEADER="${HEADER}Has_Wiki,"
+    IsFieldEnabled "Full_URL" && HEADER="${HEADER}Full_URL,"
+    IsFieldEnabled "Migration_Issue" && HEADER="${HEADER}Migration_Issue,"
+    IsFieldEnabled "Created" && HEADER="${HEADER}Created,"
 
-    echo "Org_Name,Repo_Name,${IS_EMPTY_HEADER}Last_Push,Last_Update,isFork,isArchived,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Branch_Count,Tag_Count,Discussion_Count,Has_Wiki,Full_URL,Migration_Issue,Created" >>"${OUTPUT_FILE_NAME}" 2>&1
+    # Remove trailing comma
+    HEADER="${HEADER%,}"
+
+    echo "${HEADER}" >>"${OUTPUT_FILE_NAME}" 2>&1
 
     #######################
     # Load the error code #
@@ -638,6 +905,19 @@ GetRepos() {
           branches: refs(refPrefix:\"refs/heads/\") {
             totalCount
           }
+          # Initial fetch of first 100 branches. If repo has >100 branches,
+          # GetAllBranchesWithLatestCommit() will paginate to fetch all branches.
+          allBranches: refs(refPrefix: \"refs/heads/\", first: 100) {
+            nodes {
+              name
+              target {
+                ... on Commit {
+                  oid
+                  committedDate
+                }
+              }
+            }
+          }
           branchProtectionRules {
             totalCount
           }
@@ -713,6 +993,9 @@ GetRepos() {
             }
           }
           pushedAt
+          defaultBranchRef {
+            name
+          }
           releases {
             totalCount
           }
@@ -803,6 +1086,7 @@ ParseRepos() {
   PARSE_DATA=$1
 
   REPOS=$(echo "${PARSE_DATA}" | jq -r '.data.organization.repositories.nodes')
+  
   for REPO_DATA in $(echo -n "${REPOS}" | jq -r '.[] | @base64'); do
     _jq() {
     echo -n "${REPO_DATA}" | base64 --decode | jq -r "${1}"
@@ -888,6 +1172,35 @@ ParseRepoData() {
   TAG_CT=$(_jq '.tags.totalCount')
   DISCUSSION_CT=$(_jq '.discussions.totalCount')
 
+  #############################################
+  # Get latest commit SHA and timestamp       #
+  # across all branches by sorting commits    #
+  #############################################
+  # First, try with initially-fetched data (up to 100 branches)
+  LATEST_COMMIT_DATA=$(echo -n "${REPO_DATA}" | base64 --decode | jq -r '[.allBranches.nodes[] | select(.target.committedDate != null)] | sort_by(.target.committedDate) | reverse | .[0]')
+  if [[ -n "${LATEST_COMMIT_DATA}" && "${LATEST_COMMIT_DATA}" != "null" ]]; then
+    LATEST_COMMIT_SHA=$(echo "${LATEST_COMMIT_DATA}" | jq -r '.target.oid // empty')
+    LATEST_COMMITTED_AT=$(echo "${LATEST_COMMIT_DATA}" | jq -r '.target.committedDate // empty')
+    LATEST_COMMIT_BRANCH=$(echo "${LATEST_COMMIT_DATA}" | jq -r '.name // empty')
+  else
+    LATEST_COMMIT_SHA=""
+    LATEST_COMMITTED_AT=""
+    LATEST_COMMIT_BRANCH=""
+  fi
+  
+  # If repo has more than 100 branches, fetch all with pagination to find true latest commit
+  if [[ ${BRANCH_CT} -gt 100 ]]; then
+    GetAllBranchesWithLatestCommit "${OWNER}" "${REPO_NAME}" "${BRANCH_CT}"
+  fi
+
+  #############################################
+  # Get default branch name                   #
+  #############################################
+  DEFAULT_BRANCH=$(_jq '.defaultBranchRef.name // empty')
+  if [[ -z "${DEFAULT_BRANCH}" ]]; then
+    DEFAULT_BRANCH="No default branch"
+  fi
+
   if [[ "${VERSION}" == "cloud" ]]; then
     PROTECTED_BRANCH_CT=$(_jq '.branchProtectionRules.totalCount')
   else
@@ -930,7 +1243,10 @@ ParseRepoData() {
   ########################
   # Write it to the file #
   ########################
-  echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY}${PUSHED_AT},${UPDATED_AT},${IS_FORK},${IS_ARCHIVED},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${BRANCH_CT},${TAG_CT},${DISCUSSION_CT},${HAS_WIKI},${URL},${MIGRATION_ISSUE},${CREATED_AT}" >>"${OUTPUT_FILE_NAME}"
+  # Remove trailing comma from IS_EMPTY if present (it's handled by BuildOutputRow)
+  IS_EMPTY="${IS_EMPTY%,}"
+  OUTPUT_DATA=$(BuildOutputRow)
+  echo "${OUTPUT_DATA}" >>"${OUTPUT_FILE_NAME}"
 
   #######################
   # Load the error code #
@@ -1597,6 +1913,11 @@ ValidateInput() {
 # Header #
 ##########
 Header
+
+###########################
+# Load Field Config       #
+###########################
+LoadFieldConfig
 
 #########################
 # Validate JQ installed #

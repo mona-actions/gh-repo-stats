@@ -20,6 +20,8 @@ $ gh repo-stats --help
 Usage: gh repo-stats [options]
 
 Options:
+     -c, --config                  : Path to field configuration CSV file (Field_Name,Should_Fetch format)
+                                     If not provided, all fields are fetched
      -d, --debug                   : Enable Debug logging
      -e, --extra-page-size         : Set the pagination size for subsequent, paginated GraphQL queries; reduce if timeout occurs
                                      Default: 50
@@ -72,14 +74,8 @@ The permissions needed by `gh repo-stats` depends based on `-y, --token-type`:
 `gh repo-stats` produces either a visual table or `*.csv` file containing detailed information about various records within repositories.
 
 ```csv
-Org_Name,Repo_Name,Is_Empty,Last_Push,Last_Update,isFork,isArchive,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Branch_Count,Tag_Count,Discussion_Count,Has_Wiki,Full_URL,Migration_Issue,Created
-tinyfists,actions-experiments,false,2023-03-10T16:15:27Z,2022-10-28T19:38:34Z,false,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/actions-experiments,FALSE,2020-01-01T13:37:00Z
-tinyfists,git-xargs,false,2022-12-09T03:44:39Z,2022-11-01T03:19:49Z,false,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/git-xargs,FALSE,2020-01-01T13:37:00Z
-tinyfists,githubcustomer,false,2022-06-04T17:00:43Z,2022-05-10T03:05:16Z,false,false,0,25,18,0,0,0,4,0,0,0,0,3,0,0,1,0,0,true,https://github.com/tinyfists/githubcustomer,FALSE,2020-01-01T13:37:00Z
-tinyfists,issue-driven-github-admin,false,2022-12-09T03:44:36Z,2022-10-14T22:03:38Z,false,false,2,1644,37,1,1,0,140,4,1,0,897,552,10,1,4,10,1,true,https://github.com/tinyfists/issue-driven-github-admin,FALSE,2020-01-01T13:37:00Z
-tinyfists,multi-runner-poc,false,2022-12-09T03:43:30Z,2022-08-03T12:44:35Z,false,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/multi-runner-poc,FALSE,2020-01-01T13:37:00Z
-tinyfists,pages-demo,false,2022-12-09T03:43:29Z,2022-11-17T23:44:50Z,false,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/pages-demo,FALSE,2020-01-01T13:37:00Z
-tinyfists,publish-packages-to-repo-demo,false,2022-12-09T03:43:31Z,2021-10-11T19:39:32Z,false,false,0,24,18,0,0,0,0,3,0,0,0,3,0,0,2,0,0,true,https://github.com/tinyfists/publish-packages-to-repo-demo,FALSE,2020-01-01T13:37:00Z
+Org_Name,Repo_Name,Is_Empty,Last_Push,Last_Update,Latest_Commit_SHA,Latest_Committed_At,Latest_Commit_Branch,Default_Branch,isFork,isArchived,Repo_Size_mb,Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Branch_Count,Tag_Count,Discussion_Count,Has_Wiki,Full_URL,Migration_Issue,Created
+tinyfists,actions-experiments,false,2023-03-10T16:15:27Z,2022-10-28T19:38:34Z,abc123def456,2023-03-10T16:15:27Z,feature-branch,main,false,false,0,19,18,0,0,0,0,1,0,0,0,0,0,0,2,0,0,true,https://github.com/tinyfists/actions-experiments,FALSE,2020-01-01T13:37:00Z
 ```
 
 **Columns**
@@ -89,9 +85,13 @@ tinyfists,publish-packages-to-repo-demo,false,2022-12-09T03:43:31Z,2021-10-11T19
 - `Is_Empty`: Whether the repository is empty; only available for GitHub.com and GHES >= 3.0
 - `Last_Push`: Date/time when a push was last made
 - `Last_Update`: Date/time when an update was last made
+- `Latest_Commit_SHA`: SHA of the most recent commit across all branches
+- `Latest_Committed_At`: Date/time when the most recent commit was made
+- `Latest_Commit_Branch`: Branch name where the most recent commit was made
+- `Default_Branch`: Default branch of the repository (e.g., main, master), or "No default branch" if none exists
 - `isFork`: Whether the repository is a fork
-- `isArchive`: Whether the repository is archived
-- `Repo_Size(mb)`: Size of the repository in megabytes
+- `isArchived`: Whether the repository is archived
+- `Repo_Size_mb`: Size of the repository in megabytes
 - `Record_Count`: Number of database records this repository represents
 - `Collaborator_Count`: Number of users who have contributed to this repository
 - `Protected_Branch_Count`: Number of branch protection rules on this repository
@@ -114,3 +114,75 @@ tinyfists,publish-packages-to-repo-demo,false,2022-12-09T03:43:31Z,2021-10-11T19
   - 60,000 or more number of objects being imported
   - 1.5 GB or larger size on disk
 - `Created`: Date/time when the repository was created
+
+## Field Configuration
+
+You can customize which fields are included in the output by using a field configuration CSV file with the `-c` or `--config` option. This is useful when you only need specific fields and want to reduce the output size.
+
+### Configuration File Format
+
+Create a CSV file with the following format:
+
+```csv
+Field_Name,Should_Fetch
+Org_Name,true
+Repo_Name,true
+Is_Empty,false
+Last_Push,true
+...
+```
+
+- `Field_Name`: The name of the field (must match exactly)
+- `Should_Fetch`: `true` to include the field, `false` to exclude it
+
+### Example Configuration File
+
+A sample configuration file `fields-config.csv` is provided in the repository with all fields enabled. You can copy and modify it to suit your needs:
+
+```shell
+# Use custom field configuration
+gh repo-stats -o my-org-name -c fields-config.csv
+```
+
+### Available Fields
+
+| Field Name | Description |
+|------------|-------------|
+| `Org_Name` | Organization login |
+| `Repo_Name` | Repository name |
+| `Is_Empty` | Whether the repository is empty |
+| `Last_Push` | Date/time when a push was last made |
+| `Last_Update` | Date/time when an update was last made |
+| `Latest_Commit_SHA` | SHA of the most recent commit |
+| `Latest_Committed_At` | Date/time of the most recent commit |
+| `Latest_Commit_Branch` | Branch of the most recent commit |
+| `Default_Branch` | Default branch of the repository |
+| `isFork` | Whether the repository is a fork |
+| `isArchived` | Whether the repository is archived |
+| `Repo_Size_mb` | Size of the repository in MB |
+| `Record_Count` | Number of database records |
+| `Collaborator_Count` | Number of collaborators |
+| `Protected_Branch_Count` | Number of branch protection rules |
+| `PR_Review_Count` | Number of pull request reviews |
+| `Milestone_Count` | Number of milestones |
+| `Issue_Count` | Number of issues |
+| `PR_Count` | Number of pull requests |
+| `PR_Review_Comment_Count` | Number of PR review comments |
+| `Commit_Comment_Count` | Number of commit comments |
+| `Issue_Comment_Count` | Number of issue comments |
+| `Issue_Event_Count` | Number of issue events |
+| `Release_Count` | Number of releases |
+| `Project_Count` | Number of projects |
+| `Branch_Count` | Number of branches |
+| `Tag_Count` | Number of tags |
+| `Discussion_Count` | Number of discussions |
+| `Has_Wiki` | Whether wiki is enabled |
+| `Full_URL` | Repository URL |
+| `Migration_Issue` | Migration issue indicator |
+| `Created` | Repository creation date |
+
+### Important Notes
+
+- **`Repo_Name` is required**: When using a configuration file, the `Repo_Name` field must be present and set to `true`. The script will error out if this field is missing or disabled.
+- If no configuration file is specified, all fields will be fetched by default.
+- If the specified configuration file doesn't exist, a warning will be shown and all fields will be fetched.
