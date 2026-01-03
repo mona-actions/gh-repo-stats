@@ -244,21 +244,75 @@ LoadFieldConfig() {
   local line_num=0
   local enabled_count=0
   local disabled_count=0
+  local malformed_count=0
   local repo_name_found=0
   local repo_name_enabled=0
-  while IFS=',' read -r field_name should_fetch || [[ -n "$field_name" ]]; do
+  while IFS= read -r line || [[ -n "$line" ]]; do
     ((line_num++))
     # Skip header line
     if [[ ${line_num} -eq 1 ]]; then
       continue
     fi
     
-    # Trim whitespace
-    field_name=$(echo "${field_name}" | tr -d '[:space:]')
-    should_fetch=$(echo "${should_fetch}" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+    # Fail on empty lines (comments starting with # are allowed)
+    local trimmed_line
+    trimmed_line=$(echo "${line}" | tr -d '[:space:]')
+    if [[ -z "${trimmed_line}" ]]; then
+      echo "ERROR: Line ${line_num}: Empty line found in configuration file"
+      ((malformed_count++))
+      continue
+    fi
     
-    # Skip empty lines
+    # Handle comment lines (starting with #) - treat as disabled fields
+    if [[ "${trimmed_line}" == \#* ]]; then
+      # Extract the field name from the commented line (remove # and parse)
+      local commented_content
+      commented_content="${trimmed_line#\#}"  # Remove leading #
+      # Check if it looks like a valid field entry (has a comma)
+      if [[ "${commented_content}" == *,* ]]; then
+        local commented_field
+        commented_field=$(echo "${commented_content}" | cut -d',' -f1 | tr -d '[:space:]')
+        if [[ -n "${commented_field}" ]]; then
+          DISABLED_FIELDS="${DISABLED_FIELDS},${commented_field},"
+          ((disabled_count++))
+          Debug "Field disabled (commented): ${commented_field}"
+        fi
+      fi
+      continue
+    fi
+
+    # Validate CSV format - must have exactly one comma separating two fields
+    local comma_count
+    comma_count=$(echo "${line}" | tr -cd ',' | wc -c | tr -d '[:space:]')
+    if [[ "${comma_count}" -ne 1 ]]; then
+      echo "WARN: Line ${line_num}: Malformed CSV - expected exactly 2 columns (Field_Name,Should_Fetch), got: '${line}'"
+      ((malformed_count++))
+      continue
+    fi
+
+    # Parse the two fields
+    local field_name
+    local should_fetch
+    field_name=$(echo "${line}" | cut -d',' -f1 | tr -d '[:space:]')
+    should_fetch=$(echo "${line}" | cut -d',' -f2 | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+    
+    # Validate field_name is not empty
     if [[ -z "${field_name}" ]]; then
+      echo "WARN: Line ${line_num}: Empty field name in: '${line}'"
+      ((malformed_count++))
+      continue
+    fi
+
+    # Validate should_fetch value
+    if [[ -z "${should_fetch}" ]]; then
+      echo "WARN: Line ${line_num}: Missing true/false value for field '${field_name}'"
+      ((malformed_count++))
+      continue
+    fi
+
+    if [[ "${should_fetch}" != "true" && "${should_fetch}" != "false" ]]; then
+      echo "WARN: Line ${line_num}: Invalid value '${should_fetch}' for field '${field_name}' (expected 'true' or 'false')"
+      ((malformed_count++))
       continue
     fi
 
@@ -274,14 +328,22 @@ LoadFieldConfig() {
     if [[ "${should_fetch}" == "true" ]]; then
       ((enabled_count++))
       Debug "Field enabled: ${field_name}"
-    elif [[ "${should_fetch}" == "false" ]]; then
+    else
       DISABLED_FIELDS="${DISABLED_FIELDS},${field_name},"
       ((disabled_count++))
       Debug "Field disabled: ${field_name}"
-    else
-      echo "WARN: Invalid value for field ${field_name}: ${should_fetch} (expected true/false)"
     fi
   done < "${FIELD_CONFIG_FILE}"
+
+  # Fail if any malformed lines were found
+  if [[ ${malformed_count} -gt 0 ]]; then
+    echo ""
+    echo "❌ ERROR: Found ${malformed_count} malformed line(s) in configuration file: ${FIELD_CONFIG_FILE}"
+    echo "   Expected format: Field_Name,true or Field_Name,false"
+    echo "   Please fix the errors above and try again."
+    echo ""
+    exit 1
+  fi
 
   # Validate that Repo_Name is present and enabled when using a config file
   if [[ ${repo_name_found} -eq 0 ]]; then
@@ -1150,7 +1212,7 @@ ParseRepoData() {
   # Look for isEmpty property only if it's supported
   IS_EMPTY="";
   if [[ "$(isCompatibleGHESVersion)" -eq "1" ]]; then
-    IS_EMPTY="$(_jq '.isEmpty'),"
+    IS_EMPTY="$(_jq '.isEmpty')"
   fi
 
   CREATED_AT=$(_jq '.createdAt')
@@ -1243,8 +1305,6 @@ ParseRepoData() {
   ########################
   # Write it to the file #
   ########################
-  # Remove trailing comma from IS_EMPTY if present (it's handled by BuildOutputRow)
-  IS_EMPTY="${IS_EMPTY%,}"
   OUTPUT_DATA=$(BuildOutputRow)
   echo "${OUTPUT_DATA}" >>"${OUTPUT_FILE_NAME}"
 
