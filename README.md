@@ -27,6 +27,8 @@ Options:
      -H, --hostname                : The GitHub hostname for the request
                                      Default: github.com
      -i, --input                   : Set path to a file with a list of organizations to scan, one per line, newline delimited
+     -J, --json                    : Output results in JSON format instead of CSV
+                                     Conforms to the schema defined in json-schema.md
      -o, --org                     : Name of the GitHub Organization to be analyzed
      -O, --output                  : Format of output, can either be "CSV" or "Table"
                                      Default: CSV
@@ -49,6 +51,7 @@ Description:
 Example:
   gh repo-stats -o my-org-name
   gh repo-stats -o my-org-name -H github.example.com
+  gh repo-stats -o my-org-name --json
 ```
 
 ## Permissions
@@ -69,7 +72,7 @@ The permissions needed by `gh repo-stats` depends based on `-y, --token-type`:
 
 ## Output
 
-`gh repo-stats` produces either a visual table or `*.csv` file containing detailed information about various records within repositories.
+`gh repo-stats` produces either a visual table or `*.csv` file containing detailed information about various records within repositories. When the `--json` (`-J`) flag is provided, output is written as JSON conforming to the schema defined in [`json-schema.md`](docs/json-schema.md). The output conforms to the [gh-stats-visualizer](https://github.com/mona-actions/gh-stats-visualizer) input format.
 
 ```csv
 Org_Name,Repo_Name,Is_Empty,Last_Push,Last_Update,isFork,isArchive,Repo_Size(mb),Record_Count,Collaborator_Count,Protected_Branch_Count,PR_Review_Count,Milestone_Count,Issue_Count,PR_Count,PR_Review_Comment_Count,Commit_Comment_Count,Issue_Comment_Count,Issue_Event_Count,Release_Count,Project_Count,Branch_Count,Tag_Count,Discussion_Count,Has_Wiki,Full_URL,Migration_Issue,Created
