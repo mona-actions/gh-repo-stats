@@ -60,6 +60,7 @@ SLEEP_RETRY_COUNT='15'                        # Number of times to try to sleep 
 SLEEP_COUNTER='0'                             # Counter of how many times we have gone to sleep
 EXISTING_FILE='0'                             # Check if a file already exists
 OUTPUT="${OUTPUT_PARAM:-CSV}"                 # Output type CSV or Table
+JSON_OUTPUT=0                             # Enable JSON output (0=disabled, 1=enabled)
 REPO_LIST_ARRAY=()                            # Array of repo names to be analyzed
 GITHUB_TOKEN_TYPE=${GITHUB_TOKEN_TYPE:-user}  # Whether 'user' or 'app' PAT
 VERSION="cloud"
@@ -83,6 +84,8 @@ Options:
      -H, --hostname                : The GitHub hostname for the request
                                      Default: github.com
      -i, --input                   : Set path to a file with a list of organizations to scan, one per line, newline delimited
+     -J, --json                    : Output in JSON format instead of CSV
+                                     Produces a .json file conforming to json-schema.md
      -o, --org                     : Name of the GitHub Organization to be analyzed           
      -O, --output                  : Format of output, can either be "CSV" or "Table"
                                      Default: $OUTPUT
@@ -162,6 +165,10 @@ while (( "$#" )); do
     -o|--org)
       ORG_NAME=$2
       shift 2
+      ;;
+    -J|--json)
+      JSON_OUTPUT=1
+      shift
       ;;
     -rl|--repo-list)
       REPO_LIST_FILE=$2
@@ -321,7 +328,31 @@ Footer() {
   echo "######################################################"
   echo "The script has completed"
   echo ""
-  if [[ ${OUTPUT} != "CSV" ]]; then
+  if [[ ${JSON_OUTPUT} -eq 1 ]]; then
+    ################################
+    # Assemble final JSON output   #
+    ################################
+    REPO_FILE_COUNT=$(find "${JSON_TEMP_DIR}" -name 'repo-*.json' -type f | wc -l | tr -d ' ')
+    if [[ "${REPO_FILE_COUNT}" -gt 0 ]]; then
+      # Use find+sort+xargs to avoid ARG_MAX limits for large orgs
+      # Write to temp file first for atomic output (don't truncate existing file on failure)
+      JSON_TEMP_OUTPUT="${JSON_TEMP_DIR}/final-output.json"
+      find "${JSON_TEMP_DIR}" -name 'repo-*.json' -type f | sort | xargs cat | jq -s '{ repos: . }' > "${JSON_TEMP_OUTPUT}"
+      ERROR_CODE=$?
+      if [ "${ERROR_CODE}" -ne 0 ]; then
+        echo "ERROR! Failed to assemble final JSON file: ${JSON_FILE_NAME}"
+      else
+        mv "${JSON_TEMP_OUTPUT}" "${JSON_FILE_NAME}"
+        echo "Results file:[${JSON_FILE_NAME}]"
+      fi
+    else
+      # No repos found, write empty structure
+      echo '{ "repos": [] }' > "${JSON_FILE_NAME}"
+      echo "Results file:[${JSON_FILE_NAME}] (no repositories found)"
+    fi
+    # Clean up temp directory (also handled by trap, but be explicit)
+    rm -rf "${JSON_TEMP_DIR}"
+  elif [[ ${OUTPUT} != "CSV" ]]; then
     column -t -s','  "${OUTPUT_FILE_NAME}"
     rm -f "${OUTPUT_FILE_NAME}"
   else
@@ -339,30 +370,54 @@ GenerateFiles() {
   # Get datestring YYYYMMDDHHMM
   DATE=$(date +%Y%m%d%H%M)
 
+  ###############################
+  # Handle JSON output mode     #
+  ###############################
+  if [[ ${JSON_OUTPUT} -eq 1 ]]; then
+    JSON_FILE_NAME="$ORG_NAME-all_repos-$DATE.json"
+    JSON_TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/gh-repo-stats-json.XXXXXX")
+    JSON_REPO_COUNTER=0
+
+    # Ensure temp directory is cleaned up on exit, interrupt, or termination
+    # shellcheck disable=SC2064
+    trap "rm -rf '${JSON_TEMP_DIR}'" EXIT INT TERM
+
+    ######################################################
+    # Need to see if there is a file that already exists #
+    ######################################################
+    EXISTING_JSON_CMD=$(find . -name "$ORG_NAME-all_repos-*.json" |grep . 2>&1)
+    ERROR_CODE=$?
+    if [ "${ERROR_CODE}" -eq 0 ]; then
+      JSON_FILE_NAME="${EXISTING_JSON_CMD:2}"
+    fi
+  fi
+
   ####################
   # Create File Name #
   ####################
   # Example: MyOrg-all_repos-201901041059.csv
-  OUTPUT_FILE_NAME="$ORG_NAME-all_repos-$DATE.csv"
+  if [[ ${JSON_OUTPUT} -ne 1 ]]; then
+    OUTPUT_FILE_NAME="$ORG_NAME-all_repos-$DATE.csv"
 
-  ######################################################
-  # Need to see if there is a file that already exists #
-  ######################################################
-  EXISTING_FILE_CMD=$(find . -name "$ORG_NAME-all_repos-*" |grep . 2>&1)
+    ######################################################
+    # Need to see if there is a file that already exists #
+    ######################################################
+    EXISTING_FILE_CMD=$(find . -name "$ORG_NAME-all_repos-*" |grep . 2>&1)
 
-  #######################
-  # Load the error code #
-  #######################
-  ERROR_CODE=$?
+    #######################
+    # Load the error code #
+    #######################
+    ERROR_CODE=$?
 
-  ##############################
-  # Check the shell for errors #
-  ##############################
-  if [ "${ERROR_CODE}" -eq 0 ]; then
-    # There is already file
-    # Going to use and append
-    OUTPUT_FILE_NAME="${EXISTING_FILE_CMD:2}"
-    EXISTING_FILE=1
+    ##############################
+    # Check the shell for errors #
+    ##############################
+    if [ "${ERROR_CODE}" -eq 0 ]; then
+      # There is already file
+      # Going to use and append
+      OUTPUT_FILE_NAME="${EXISTING_FILE_CMD:2}"
+      EXISTING_FILE=1
+    fi
   fi
 
   if [[ ${ANALYZE_CONFLICTS} -eq 1 ]]; then
@@ -426,7 +481,7 @@ GenerateFiles() {
   #########################################
   # Only add header if were not appending #
   #########################################
-  if [ "${EXISTING_FILE}" -ne 1 ]; then
+  if [[ ${JSON_OUTPUT} -ne 1 ]] && [ "${EXISTING_FILE}" -ne 1 ]; then
     #############################
     # Create Header in the file #
     #############################
@@ -828,25 +883,108 @@ ParseRepos() {
       #################################################################
       # Need to check if this repo has already been parsed in the doc #
       #################################################################
-      grep "${OWNER},${REPO_NAME}," "${OUTPUT_FILE_NAME}" >/dev/null 2>&1
-
-      #######################
-      # Load the error code #
-      #######################
-      ERROR_CODE=$?
-
-      ##############################
-      # Check the shell for errors #
-      ##############################
-      if [ ${ERROR_CODE} -eq 0 ]; then
-        # Found this in the csv already
-        echo "Repo:[${OWNER}/${REPO_NAME}] has previously been analyzed, moving on..."
-      elif [ ${ERROR_CODE} -ne 0 ] && [[ -z "${REPO_LIST_FILE}" ]]; then
+      if [[ ${JSON_OUTPUT} -eq 1 ]]; then
+        # In JSON mode, skip CSV de-dupe check and always parse
         echo "Analyzing Repo: ${REPO_NAME}"
         ParseRepoData "${REPO_DATA}"
+      else
+        grep "${OWNER},${REPO_NAME}," "${OUTPUT_FILE_NAME}" >/dev/null 2>&1
+
+        #######################
+        # Load the error code #
+        #######################
+        ERROR_CODE=$?
+
+        ##############################
+        # Check the shell for errors #
+        ##############################
+        if [ ${ERROR_CODE} -eq 0 ]; then
+          # Found this in the csv already
+          echo "Repo:[${OWNER}/${REPO_NAME}] has previously been analyzed, moving on..."
+        elif [ ${ERROR_CODE} -ne 0 ] && [[ -z "${REPO_LIST_FILE}" ]]; then
+          echo "Analyzing Repo: ${REPO_NAME}"
+          ParseRepoData "${REPO_DATA}"
+        fi
       fi
     fi
   done
+}
+################################################################################
+#### Function GenerateJSONObject ###############################################
+GenerateJSONObject() {
+  ########################################################
+  # Build a JSON object for this repo from existing data #
+  ########################################################
+  ((JSON_REPO_COUNTER++))
+
+  REPO_JSON=$(jq -n \
+    --arg org "$ORG_NAME" \
+    --arg name "$REPO_NAME" \
+    --arg url "$URL" \
+    --argjson isFork "$IS_FORK" \
+    --argjson isArchived "$IS_ARCHIVED" \
+    --argjson diskUsage "${REPO_SIZE_KB:-0}" \
+    --argjson sizeMB "${REPO_SIZE:-0}" \
+    --argjson hasWikiEnabled "$HAS_WIKI" \
+    --arg createdAt "$CREATED_AT" \
+    --arg updatedAt "$UPDATED_AT" \
+    --arg pushedAt "$PUSHED_AT" \
+    --argjson collaborators "${COLLABORATOR_CT:-0}" \
+    --argjson branches "${BRANCH_CT:-0}" \
+    --argjson tags "${TAG_CT:-0}" \
+    --argjson branchProtections "${PROTECTED_BRANCH_CT:-0}" \
+    --argjson issues "${ISSUE_CT:-0}" \
+    --argjson pullRequests "${PR_CT:-0}" \
+    --argjson milestones "${MILESTONE_CT:-0}" \
+    --argjson releases "${RELEASE_CT:-0}" \
+    --argjson projects "${PROJECT_CT:-0}" \
+    --argjson discussions "${DISCUSSION_CT:-0}" \
+    --argjson commitComments "${COMMIT_COMMENT_CT:-0}" \
+    --argjson issueEvents "${ISSUE_EVENT_CT:-0}" \
+    '{
+      org: $org,
+      name: $name,
+      url: $url,
+      isFork: $isFork,
+      isArchived: $isArchived,
+      diskUsage: $diskUsage,
+      sizeMB: $sizeMB,
+      hasWikiEnabled: $hasWikiEnabled,
+      createdAt: $createdAt,
+      updatedAt: $updatedAt,
+      pushedAt: $pushedAt,
+      collaborators: $collaborators,
+      branches: $branches,
+      tags: $tags,
+      branchProtections: $branchProtections,
+      issues: $issues,
+      pullRequests: $pullRequests,
+      milestones: $milestones,
+      releases: $releases,
+      projects: $projects,
+      discussions: $discussions,
+      commitComments: $commitComments,
+      issueEvents: $issueEvents
+    }')
+
+  ERROR_CODE=$?
+  if [ "${ERROR_CODE}" -ne 0 ]; then
+    echo "ERROR! Failed to generate JSON for repo: ${ORG_NAME}/${REPO_NAME}"
+    return 1
+  fi
+
+  ################################
+  # Write JSON to temp directory #
+  ################################
+  echo "${REPO_JSON}" > "${JSON_TEMP_DIR}/repo-$(printf '%06d' ${JSON_REPO_COUNTER}).json"
+
+  ERROR_CODE=$?
+  if [ "${ERROR_CODE}" -ne 0 ]; then
+    echo "ERROR! Failed to write JSON file for repo: ${ORG_NAME}/${REPO_NAME}"
+    return 1
+  fi
+
+  Debug "Generated JSON for repo: ${ORG_NAME}/${REPO_NAME}"
 }
 ################################################################################
 #### Function ParseRepoData ####################################################
@@ -930,20 +1068,24 @@ ParseRepoData() {
   ########################
   # Write it to the file #
   ########################
-  echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY}${PUSHED_AT},${UPDATED_AT},${IS_FORK},${IS_ARCHIVED},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${BRANCH_CT},${TAG_CT},${DISCUSSION_CT},${HAS_WIKI},${URL},${MIGRATION_ISSUE},${CREATED_AT}" >>"${OUTPUT_FILE_NAME}"
+  if [[ ${JSON_OUTPUT} -eq 1 ]]; then
+    GenerateJSONObject
+  else
+    echo "${ORG_NAME},${REPO_NAME},${IS_EMPTY}${PUSHED_AT},${UPDATED_AT},${IS_FORK},${IS_ARCHIVED},${REPO_SIZE},${RECORD_CT},${COLLABORATOR_CT},${PROTECTED_BRANCH_CT},${PR_REVIEW_CT},${MILESTONE_CT},${ISSUE_CT},${PR_CT},${PR_REVIEW_COMMENT_CT},${COMMIT_COMMENT_CT},${ISSUE_COMMENT_CT},${ISSUE_EVENT_CT},${RELEASE_CT},${PROJECT_CT},${BRANCH_CT},${TAG_CT},${DISCUSSION_CT},${HAS_WIKI},${URL},${MIGRATION_ISSUE},${CREATED_AT}" >>"${OUTPUT_FILE_NAME}"
 
-  #######################
-  # Load the error code #
-  #######################
-  # shellcheck disable=SC2320
-  ERROR_CODE=$?
+    #######################
+    # Load the error code #
+    #######################
+    # shellcheck disable=SC2320
+    ERROR_CODE=$?
 
-  ##############################
-  # Check the shell for errors #
-  ##############################
-  if [ "${ERROR_CODE}" -ne 0 ]; then
-    echo "ERROR! Failed to write output to file:[${OUTPUT_FILE_NAME}]"
-    exit 1
+    ##############################
+    # Check the shell for errors #
+    ##############################
+    if [ "${ERROR_CODE}" -ne 0 ]; then
+      echo "ERROR! Failed to write output to file:[${OUTPUT_FILE_NAME}]"
+      exit 1
+    fi
   fi
 
   ##############################
