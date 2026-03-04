@@ -976,10 +976,7 @@ GenerateJSONObject() {
   ################################
   # Write JSON to temp directory #
   ################################
-  echo "${REPO_JSON}" > "${JSON_TEMP_DIR}/repo-$(printf '%06d' ${JSON_REPO_COUNTER}).json"
-
-  ERROR_CODE=$?
-  if [ "${ERROR_CODE}" -ne 0 ]; then
+  if ! echo "${REPO_JSON}" > "${JSON_TEMP_DIR}/repo-$(printf '%06d' ${JSON_REPO_COUNTER}).json"; then
     echo "ERROR! Failed to write JSON file for repo: ${ORG_NAME}/${REPO_NAME}"
     return 1
   fi
