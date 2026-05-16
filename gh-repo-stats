@@ -385,10 +385,16 @@ GenerateFiles() {
     ######################################################
     # Need to see if there is a file that already exists #
     ######################################################
-    EXISTING_JSON_CMD=$(find . -name "$ORG_NAME-all_repos-*.json" |grep . 2>&1)
-    ERROR_CODE=$?
-    if [ "${ERROR_CODE}" -eq 0 ]; then
-      JSON_FILE_NAME="${EXISTING_JSON_CMD:2}"
+    EXISTING_JSON_CMD=$(ls "$ORG_NAME-all_repos-*.json" 2>/dev/null | head -1)
+    
+    ################################
+    # Check ls result is not empty #
+    ################################
+    if [[ -n "${EXISTING_JSON_CMD}" ]]; then
+      JSON_FILE_NAME="${EXISTING_JSON_CMD}"
+      Debug "Found existing JSON file, using: $JSON_FILE_NAME"
+    else
+      Debug "No existing JSON file found, creating: $JSON_FILE_NAME"    
     fi
   fi
 
@@ -402,21 +408,19 @@ GenerateFiles() {
     ######################################################
     # Need to see if there is a file that already exists #
     ######################################################
-    EXISTING_FILE_CMD=$(find . -name "$ORG_NAME-all_repos-*" |grep . 2>&1)
+    EXISTING_FILE_CMD=$(ls "$ORG_NAME-all_repos-"* 2>/dev/null | head -1)
 
-    #######################
-    # Load the error code #
-    #######################
-    ERROR_CODE=$?
-
-    ##############################
-    # Check the shell for errors #
-    ##############################
-    if [ "${ERROR_CODE}" -eq 0 ]; then
+    ################################
+    # Check ls result is not empty #
+    ################################
+    if [[ -n "${EXISTING_FILE_CMD}" ]]; then
       # There is already file
       # Going to use and append
-      OUTPUT_FILE_NAME="${EXISTING_FILE_CMD:2}"
+      OUTPUT_FILE_NAME="${EXISTING_FILE_CMD}"
       EXISTING_FILE=1
+      Debug "Found existing CSV file, using: $OUTPUT_FILE_NAME"
+    else
+      Debug "No existing CSV file found, creating: $OUTPUT_FILE_NAME"    
     fi
   fi
 
@@ -426,20 +430,18 @@ GenerateFiles() {
     ######################################################
     # Need to see if there is a file that already exists #
     ######################################################
-    EXISTING_FILE_CMD=$(find . -name "$ORG_NAME-repo-conflicts-*" |grep . 2>&1)
+    EXISTING_FILE_CMD=$(ls "$ORG_NAME-repo-conflicts-"* 2>/dev/null | head -1)
 
-    #######################
-    # Load the error code #
-    #######################
-    ERROR_CODE=$?
-
-    ##############################
-    # Check the shell for errors #
-    ##############################
-    if [ "${ERROR_CODE}" -eq 0 ]; then
+    ################################
+    # Check ls result is not empty #
+    ################################
+    if [[ -n "${EXISTING_FILE_CMD}" ]]; then
       # There is already file
       # Going to use and append
-      REPO_CONFLICTS_OUTPUT_FILE="${EXISTING_FILE_CMD:2}"
+      REPO_CONFLICTS_OUTPUT_FILE="${EXISTING_FILE_CMD}"
+      Debug "Found existing Repo Conflicts CSV file, using: $REPO_CONFLICTS_OUTPUT_FILE"
+    else
+      Debug "No existing Repo Conflicts CSV file found, creating: $REPO_CONFLICTS_OUTPUT_FILE"    
     fi
 
     if ! echo "conflict qty, repo name, org names" > "${REPO_CONFLICTS_OUTPUT_FILE}"
@@ -455,20 +457,18 @@ GenerateFiles() {
     ######################################################
     # Need to see if there is a file that already exists #
     ######################################################
-    EXISTING_FILE_CMD=$(find . -name "$ORG_NAME-team-conflicts-*" |grep . 2>&1)
+    EXISTING_FILE_CMD=$(ls "$ORG_NAME-team-conflicts-"* 2>/dev/null | head -1)
 
-    #######################
-    # Load the error code #
-    #######################
-    ERROR_CODE=$?
-
-    ##############################
-    # Check the shell for errors #
-    ##############################
-    if [ "${ERROR_CODE}" -eq 0 ]; then
+      ################################
+      # Check ls result is not empty #
+      ################################
+    if [[ -n "${EXISTING_FILE_CMD}" ]]; then
       # There is already file
       # Going to use and append
-      TEAM_CONFLICTS_OUTPUT_FILE="${EXISTING_FILE_CMD:2}"
+      TEAM_CONFLICTS_OUTPUT_FILE="${EXISTING_FILE_CMD}"
+      Debug "Found existing Team Conflicts CSV file, using: $TEAM_CONFLICTS_OUTPUT_FILE"
+    else
+      Debug "No existing Team Conflicts CSV file found, creating: $TEAM_CONFLICTS_OUTPUT_FILE"
     fi
 
     if ! echo "conflict qty, team name, org names" > "${TEAM_CONFLICTS_OUTPUT_FILE}"
