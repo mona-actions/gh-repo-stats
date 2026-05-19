@@ -385,7 +385,7 @@ GenerateFiles() {
     ######################################################
     # Need to see if there is a file that already exists #
     ######################################################
-    EXISTING_JSON_CMD=$(ls "$ORG_NAME-all_repos-*.json" 2>/dev/null | head -1)
+    EXISTING_JSON_CMD=$(ls "$ORG_NAME-all_repos-"*.json 2>/dev/null | head -1)
     
     ################################
     # Check ls result is not empty #
