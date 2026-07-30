@@ -558,13 +558,20 @@ CheckAdminRights() {
 ################################################################################
 #### Function isGHEC ###########################################################
 isCloud() {
-  if [[ "$OSTYPE" == "msys" ]]; then
-    # If the operating system is Windows escape leading slash
-    ROOT_DATA=$(gh api //)
-  else
-    # If the operating system is Unix-like (e.g., Linux, macOS)
-    ROOT_DATA=$(gh api /)
-  fi
+  # Git Bash reports OSTYPE inconsistently across builds: "msys" on the common
+  # MINGW64 build, but "cygwin" on others such as the ARM64 CLANG build. Match
+  # all of them, otherwise the leading slash is rewritten into a filesystem
+  # path and this check silently misidentifies github.com as GHES.
+  case "${OSTYPE}" in
+    msys* | cygwin* | win32)
+      # If the operating system is Windows escape leading slash
+      ROOT_DATA=$(gh api //)
+      ;;
+    *)
+      # If the operating system is Unix-like (e.g., Linux, macOS)
+      ROOT_DATA=$(gh api /)
+      ;;
+  esac
   USER_URL=$(echo -n "${ROOT_DATA}" | jq -r '.current_user_url')
 
   if [[ "${USER_URL}" != "https://api.github.com/user" ]]; then
