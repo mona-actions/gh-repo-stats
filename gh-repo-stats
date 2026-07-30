@@ -1028,7 +1028,7 @@ ParseRepoData() {
   ISSUE_CT=$(_jq '.issues.totalCount')
   RELEASE_CT=$(_jq '.releases.totalCount')
   COMMIT_COMMENT_CT=$(_jq '.commitComments.totalCount')
-  PROJECT_CT=$(_jq '.projects.totalCount')
+  PROJECT_CT=$(_jq '.projectsV2.totalCount')
   BRANCH_CT=$(_jq '.branches.totalCount')
   TAG_CT=$(_jq '.tags.totalCount')
   DISCUSSION_CT=$(_jq '.discussions.totalCount')
