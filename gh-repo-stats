@@ -558,13 +558,20 @@ CheckAdminRights() {
 ################################################################################
 #### Function isGHEC ###########################################################
 isCloud() {
-  if [[ "$OSTYPE" == "msys" ]]; then
-    # If the operating system is Windows escape leading slash
-    ROOT_DATA=$(gh api //)
-  else
-    # If the operating system is Unix-like (e.g., Linux, macOS)
-    ROOT_DATA=$(gh api /)
-  fi
+  # Git Bash reports OSTYPE inconsistently across builds: "msys" on the common
+  # MINGW64 build, but "cygwin" on others such as the ARM64 CLANG build. Match
+  # all of them, otherwise the leading slash is rewritten into a filesystem
+  # path and this check silently misidentifies github.com as GHES.
+  case "${OSTYPE}" in
+    msys* | cygwin* | win32)
+      # If the operating system is Windows escape leading slash
+      ROOT_DATA=$(gh api //)
+      ;;
+    *)
+      # If the operating system is Unix-like (e.g., Linux, macOS)
+      ROOT_DATA=$(gh api /)
+      ;;
+  esac
   USER_URL=$(echo -n "${ROOT_DATA}" | jq -r '.current_user_url')
 
   if [[ "${USER_URL}" != "https://api.github.com/user" ]]; then
@@ -870,7 +877,7 @@ ParseRepos() {
   REPOS=$(echo "${PARSE_DATA}" | jq -r '.data.organization.repositories.nodes')
   for REPO_DATA in $(echo -n "${REPOS}" | jq -r '.[] | @base64'); do
     _jq() {
-    echo -n "${REPO_DATA}" | base64 --decode | jq -r "${1}"
+    echo -n "${REPO_DATA}" | tr -d '\r' | base64 --decode | jq -r "${1}"
     }
 
     OWNER=$(_jq '.owner.login' | tr '[:upper:]' '[:lower:]')
@@ -1000,7 +1007,7 @@ ParseRepoData() {
   REPO_DATA=$1
   # Convert the format to JSON
   _jq() {
-    echo -n "${REPO_DATA}" | base64 --decode | jq -r "${1}"
+    echo -n "${REPO_DATA}" | tr -d '\r' | base64 --decode | jq -r "${1}"
   }
 
   OWNER=$(_jq '.owner.login' | tr '[:upper:]' '[:lower:]')
@@ -1127,7 +1134,7 @@ AnalyzeIssues() {
   THIS_REPO=$1
 
   _pr_issue_jq() {
-   echo -n "${THIS_REPO}" | base64 --decode | jq -r "${1}"
+   echo -n "${THIS_REPO}" | tr -d '\r' | base64 --decode | jq -r "${1}"
   }
 
   ISSUES=$(_pr_issue_jq '.issues.nodes')
@@ -1144,7 +1151,7 @@ AnalyzeIssues() {
 
   for ISSUE in $(echo -n "${ISSUES}" | jq -r '.[] | @base64'); do
     _issue_jq() {
-      echo -n "${ISSUE}" | base64 --decode | jq -r "${1}"
+      echo -n "${ISSUE}" | tr -d '\r' | base64 --decode | jq -r "${1}"
     }
 
     EVENT_CT=$(_issue_jq '.timeline.totalCount')
@@ -1240,7 +1247,7 @@ GetNextIssues() {
 AnalyzePullRequests() {
   PR_REPO=$1
   _pr_repo_jq() {
-   echo -n "${PR_REPO}" | base64 --decode | jq -r "${1}"
+   echo -n "${PR_REPO}" | tr -d '\r' | base64 --decode | jq -r "${1}"
   }
 
   Debug "Analyzing Pull Requests for: ${REPO_NAME}"
@@ -1258,7 +1265,7 @@ AnalyzePullRequests() {
   PR_NEXT_PAGE=$(_pr_repo_jq  '.pullRequests.pageInfo.endCursor')
   for PR in $(echo -n "${PRS}" | jq -r '.[] | @base64'); do
     _pr_jq() {
-    echo -n "${PR}" | base64 --decode | jq -r "${1}"
+    echo -n "${PR}" | tr -d '\r' | base64 --decode | jq -r "${1}"
     }
 
     PR_NUMBER=$(_pr_jq '.number')
@@ -1397,7 +1404,7 @@ AnalyzeReviews() {
   REVIEW_PR=$1
 
   _review_jq() {
-   echo -n "${REVIEW_PR}" | base64 --decode | jq -r "${1}"
+   echo -n "${REVIEW_PR}" | tr -d '\r' | base64 --decode | jq -r "${1}"
   }
 
   REVIEWS=$(_review_jq '.reviews.nodes')
@@ -1417,7 +1424,7 @@ AnalyzeReviews() {
 
   for REVIEW in $(echo -n "${REVIEWS}" | jq -r '.[] | @base64'); do
     _pr_jq() {
- echo -n "${REVIEW}" | base64 --decode | jq -r "${1}"
+ echo -n "${REVIEW}" | tr -d '\r' | base64 --decode | jq -r "${1}"
     }
 
     REVIEW_COMMENT_CT=$(_pr_jq '.comments.totalCount')
@@ -1581,7 +1588,7 @@ GetTeams() {
     
     for TEAM in $(echo -n "${TEAMS}" | jq -r '.[] | @base64'); do
       _team_jq() {
-        echo -n "${TEAM}" | base64 --decode | jq -r "${1}"
+        echo -n "${TEAM}" | tr -d '\r' | base64 --decode | jq -r "${1}"
       }
 
       TEAM_NAME=$(_team_jq '.slug')
